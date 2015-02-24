@@ -5,6 +5,7 @@ Created on Tue Feb 17 11:36:55 2015
 @author: nfette
 """
 
+from __future__ import print_function
 import ees_interface
 from collections import namedtuple
 import sys
@@ -102,15 +103,15 @@ if __name__ == "__main__":
     myprops = AmmoniaProps(defaultPath)
     f1 = myprops.props(123)
     callFormat, invars, outvars = f1.getCallFormat()
-    print callFormat
-    print "Invars, outvars:{},{}".format(invars,outvars)
-    print f1.getInputUnits()
-    print f1.getOutputUnits()
+    print(callFormat)
+    print("Invars, outvars:{},{}".format(invars,outvars))
+    print(f1.getInputUnits())
+    print(f1.getOutputUnits())
 
-    print myprops.props(123).call(450, 10, 0.5)
-    print myprops.props('TPx').call(450, 10, 0.5)
+    print(myprops.props(123).call(450, 10, 0.5))
+    print(myprops.props('TPx').call(450, 10, 0.5))
     try:
-        print myprops.props('TPu').call(450, 10, 0.5)
+        print(myprops.props('TPu').call(450, 10, 0.5))
     except Exception as e:
-        print e.__repr__()
+        print(e.__repr__())
         

@@ -10,8 +10,12 @@ uses one function with several modes to return info about the function itself,
 and then the values you are evaluating. This module creates an interface
 to set up the function calls in more Pythonic syntax.
 
+I'm a little confused. enum works in Python(x,y) for Windows, which I thought
+was strictly python 2.7. However, on command line linux, enum works only
+with python3 (supported by enum documentation).
 """
 
+from __future__ import print_function
 import ctypes
 import enum
 import os.path
@@ -59,7 +63,7 @@ class EES_DLP:
         #myDLL=ctypes.cdll.LoadLibrary(self.path)
         # The function has the same name as the file, per EES documentation
         self.name = os.path.splitext(os.path.basename(path))[0].upper()
-        print self.name
+        print(self.name)
         self.func = self.mydll[self.name]
         self.func.argtypes=[EesStringData, ctypes.POINTER(ctypes.c_int),
                        ctypes.POINTER(EesParamRec), ctypes.POINTER(EesParamRec)]
@@ -92,18 +96,18 @@ if __name__ == "__main__":
     myDLL = EES_DLP('nh3h2o.dlp')
     
     callFormat, invars, outvars = myDLL.getCallFormat()
-    print callFormat
-    print "Invars, outvars:{},{}".format(invars,outvars)
+    print(callFormat)
+    print("Invars, outvars:{},{}".format(invars,outvars))
     
-    print "Inputs:"
+    print("Inputs:")
     inarglist = [123, 450, 10, 0.5]
     inunits = myDLL.getInputUnits(inarglist=inarglist)
-    for p in zip(invars, inarglist, inunits): print p
+    for p in zip(invars, inarglist, inunits): print(p)
     
-    print "Outputs:"
+    print("Outputs:")
     outunits = myDLL.getOutputUnits()
     
     inarglist = [123, 450, 10, 0.5]
     s0,outarglist = myDLL.call("", inarglist)
     #print outarglist
-    for p in zip(outvars, outarglist, outunits): print p
+    for p in zip(outvars, outarglist, outunits): print(p)
