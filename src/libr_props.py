@@ -24,6 +24,9 @@ def P_LiBrH2O(T,x):
     at the given temperature and composition using the formulation
     presented by
     Patek and Klomfar, Int. J. Refrig., Vol 29, pp 566-578 (2006)
+    
+    Notes: "above" the mixture: is completely water vapor. So there are only
+    two relevant properties to find equilibrium vapor pressure (?).
 
     Units: T [K]
            x = mass fraction LiBr
@@ -50,17 +53,35 @@ def P_LiBrH2O(T,x):
     #P$=UnitSystem$('Pressure')
     #P_LiBrH2O=pressure(Water,T=Ts,x=0)
     Q = 0.0
-    print("Ts, Q = {}, {}".format(Ts, Q))
-    pressurePa = PropsSI('P','T',Ts,'Q',Q,'Water') # Pa
-    print(pressurePa)
+    #print("Ts, Q = {}, {}".format(Ts, Q))
+    pressurePa = PropsSI('P','T',Ts,'Q',Q,'water') # Pa
+    #print("pressurePa = {}".format(pressurePa)) # ()
     pressureBar = pressurePa * 1e-5
     return pressureBar
     
+def T_LiBrH2O(P,x):
+    """T_LiBrH2O returns the temperature of a lithium bromide-water mixture at
+    the given the pressure and composition using the formulation presented by
+    Patek and Klomfar, Int. J. Refrig., Vol 29, pp 566-578 (2006)
+    
+    Notes: "above" the mixture: is completely water vapor. So there are only
+    two relevant properties to find equilibrium vapor pressure (?).
+
+    Units: T [K]
+           x = mass fraction LiBr
+           P [bar]
+    """
+    # Just call a solver on the previously defined pressure function
+    
+    
 if __name__ == "__main__":
     # Unit testing
-    # Pressure (cf table 6.1)
-    for TC,x in ((32.9,0.567),(63.2,0.567),(89.4,0.624),(53.3,0.624),\
-        (76.8,0.0),(39.9,0.0),(1.5,0.0)):
+    # Pressure (cf table 6.1, or rather LiBrSS7B.EES (slight difference))
+    #for TC,x in ((32.7,0.567),(63.3,0.567),(89.9,0.625),(53.3,0.625),\
+    #    (44.7,62.5),(77.0,0.0),(40.2,0.0),(1.3,0.0)):
+    #    P = P_LiBrH2O(C2K(TC),x)
+    #    print("(T,x) = ({},{}) -> P = {}".format(TC,x,P))
+    for TC,x in ((50.0,0.5),):
         P = P_LiBrH2O(C2K(TC),x)
         print("(T,x) = ({},{}) -> P = {}".format(TC,x,P))
     
