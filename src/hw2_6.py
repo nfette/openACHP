@@ -123,7 +123,7 @@ def main():
     ax1.set_xticks(x + width)
     ax1.set_xticklabels(('Cold','Mid','Hot'))
     ax2.set_ylabel('Exchanger UA',color='blue')
-    plt.savefig('{}.figure{}.png'.format(me,plt.gcf().number))
+    plt.savefig('../img/{}.figure{}.png'.format(me,plt.gcf().number))
     
     # Vary the evaporator heat exchanger.
     A_evap = np.linspace(1,10)
@@ -177,7 +177,7 @@ def main():
     for tl in ax2.get_yticklabels():
         tl.set_color('r')
 
-    plt.savefig('{}.figure{}.png'.format(me,plt.gcf().number))
+    plt.savefig('../img/{}.figure{}.png'.format(me,plt.gcf().number))
     
     plt.figure()
     plt.plot(a_UA, a_T0i, a_UA, a_T1i, a_UA, a_T2i)
@@ -187,7 +187,7 @@ def main():
     plt.gca().axvline(UA0_nominal,color='k')
     plt.xlabel('Evaporator UA (W/K)')
     plt.ylabel('Temperature (K)')
-    plt.savefig('{}.figure{}.png'.format(me,plt.gcf().number))
+    plt.savefig('../img/{}.figure{}.png'.format(me,plt.gcf().number))
     # plt.show()
 
     return

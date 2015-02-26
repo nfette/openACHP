@@ -129,13 +129,13 @@ Outputs: h = mass specific enthalpy / [J/kg]
     P_crit = PropsSI('water','pcrit')
     h_crit = PropsSI('H','T',T_crit,'P',P_crit,'water') # J/kg
     h_c = h_crit * MW_H2O
-    T_c=T_crit # [K]
-    T_0=221 # [K]
+    T_c = T_crit # [K]
+    T_0 = 221 # [K] "is a nonlinear parameter of the equations"
 
-    TK=T
+    TK = T
     x_N = molefraction(x)
-    print(x_N)
-    s=0
+    # print(x_N)
+    s = 0
     for i in range(len(a)):
         s = s + a[i] * x_N**m[i] * abs(0.4-x_N)**n[i] * (T_c/(TK-T_0))**t[i]
     Qu = 0.0
@@ -150,6 +150,45 @@ Outputs: h = mass specific enthalpy / [J/kg]
     result = h_molar / MW
     return result
 
+def specificMassEntropy(T,x):
+    """Inputs:  T = Temperature / [Kelvin]
+         x = mass fraction LiBr
+Outputs: s = mass specific entropy / [J/kg-K]
+"""
+    a=[1.53091,-4.52564, 698.302,-21666.4,-1475.33,0.0847012,-6.59523,
+       -29533.1,0.00956314,-0.188679,9.31752,5.78104,13893.1,-17176.2,
+       415.108,-55564.7,-0.00423409,30.5242,-1.67620,14.8283,0.00303055,
+       -0.0401810,0.149252,2.59240,-0.177421,-0.0000699650,0.000605007,
+       -0.00165228,0.00122966]
+    m = [1,1,2,3,6,1,3,5,1,2,2,4,5,5,6,6,1,3,5,7,1,1,1,2,3,1,1,1,1]
+    n = [0,1,6,6,2,0,0,4,0,0,4,0,4,5,2,5,0,4,0,1,0,2,4,7,1,0,1,2,3]
+    t = [0,0,0,0,0,1,1,1,2,2,2,2,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5]
+    T_c = 647.096 # [K]
+    T_0 = 221 # [K] "is a nonlinear parameter of the equations"
+    s_c = 79.3933 # [J/gmol-K]
+    T_crit = PropsSI('water','Tcrit') # [K]
+    P_crit = PropsSI('water','pcrit')
+    s_crit = PropsSI('S','T',T_crit,'P',P_crit,'water') # J/kg-K
+    s_crit_molar = s_crit * MW_H2O
+    print("By the way, pure water @ critical point has entropy {} J/kg-K"
+        .format(s_crit))
+    print("By the way, pure water @ critical point has entropy {} J/kmol-K"
+        .format(s_crit_molar))
+        
+    TK = T
+    x_N = molefraction(x)    
+    s = 0
+    for i in range(len(a)):
+         s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i] * (T_c / (TK - T_0)) ** t[i]
+    #s_w=entropy(Water,T=T,x=0)
+    Qu_water = 0.0
+    s_w_mass = PropsSI('S','T',TK,'Q',Qu_water,'water') # J/kg-K
+    s_w_molar = s_w_mass * MW_H2O # J/kmol-K
+    s_molar = (1 - x_N) * s_w_molar + s_c * s
+    MW = x_N * MW_LiBr + (1 - x_N) * MW_H2O
+    result = s_molar / MW
+    return result
+    
 if __name__ == "__main__":
     # Unit testing
     # Pressure (cf table 6.1, or rather LiBrSS7B.EES (slight difference))
@@ -201,4 +240,12 @@ if __name__ == "__main__":
     h_crit = PropsSI('H','T',T_crit,'P',P_crit,'water')
     print("By the way, pure water @ critical point has enthalpy {} J/kg"
         .format(h_crit))
+    
+    # Confer documentation for s_LiBrH2O
+    for TC,x,s_expected in ((50.0,0.5,0.3519e3),):
+        T = C2K(TC)
+        s = specificMassEntropy(T,x)
+        print("T,x = {} C, {} -> s = {} J/kg-K, expected {}".format(TC,x,s,s_expected))
+    
+    # Confer documentation for Cp_LiBrH2O
     

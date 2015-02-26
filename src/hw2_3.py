@@ -67,7 +67,7 @@ if __name__ == "__main__":
     plt.ylim(0.1,1)
     #plt.show()
     
-    plt.savefig('{}.figure{}.png'.format(me,plt.gcf().number))
+    plt.savefig('../img/{}.figure{}.png'.format(me,plt.gcf().number))
 
 
     plt.figure(2)
@@ -102,5 +102,5 @@ if __name__ == "__main__":
     #plt.ylim(-0.1,0.1)
     #plt.show()
     
-    plt.savefig('{}.figure{}.png'.format(me,plt.gcf().number))
+    plt.savefig('../img/{}.figure{}.png'.format(me,plt.gcf().number))
     
