@@ -12,6 +12,7 @@ functions for water, and compare to a known set of code using these relations.
 from CoolProp.CoolProp import PropsSI
 from hw2_1 import CelsiusToKelvin as C2K, KelvinToCelsius as K2C
 from scipy.optimize import minimize
+import numpy as np
 
 MW_LiBr = 86.85 # kg/kmol
 MW_H2O = 18.015 # kg/kmol
@@ -36,7 +37,10 @@ def pressure(T,x):
     Units: T [K]
            x = mass fraction LiBr
            P [bar]
+           
+    Based on Table 4 and Equation (1) in reference.
     """
+    
     a = [-2.41303e2, 1.91750e7, -1.75521e8, 3.25432e7, 3.92571e2, -2.12626e3, 1.85127e8, 1.91216e3]
     m = [3,4,4,8,1,1,4,6]
     n = [0,5,6,3,0,2,6,0]
@@ -48,6 +52,7 @@ def pressure(T,x):
     molef = x
     #if (UnitSystem('mass')=1) then x=molefraction_LiBrH2O(x)
     x_N = molefraction(x)
+    
     s = 0
     for i in range(8):
         s=s+a[i]* x_N**m[i] * abs(0.4-x_N)**n[i] * (TK/T_c)**t[i]
@@ -113,11 +118,14 @@ def massFraction(T,P):
     soln = minimize(objective_x, (0.5), constraints=cons, args=(T,P))
     return soln.x[0]
 
-def specificMassEnthalpy(T,x):
+def massSpecificEnthalpy(T,x):
     """Inputs:  T = Temperature / [Kelvin]
          x = mass fraction LiBr
 Outputs: h = mass specific enthalpy / [J/kg]
+
+Based on table 7 and equation (4) in reference.
 """
+    
     a=[2.27431,-7.99511, 385.239,-16394,-422.562,0.113314,-8.33474,-17383.3,\
     6.49763,3245.52,-13464.3,39932.2,-258877,-0.00193046,2.80616,-40.4479,\
     145.342,-2.74873,-449.743,-12.1794,-0.00583739,0.233910,0.341888,8.85259,\
@@ -130,7 +138,7 @@ Outputs: h = mass specific enthalpy / [J/kg]
     h_crit = PropsSI('H','T',T_crit,'P',P_crit,'water') # J/kg
     h_c = h_crit * MW_H2O
     T_c = T_crit # [K]
-    T_0 = 221 # [K] "is a nonlinear parameter of the equations"
+    T_0 = 221. # [K] "is a nonlinear parameter of the equations"
 
     TK = T
     x_N = molefraction(x)
@@ -143,18 +151,20 @@ Outputs: h = mass specific enthalpy / [J/kg]
     #print("Sat liquid water enthalpy {} J/kg".format(h_w_mass))
     h_w_molar = h_w_mass * MW_H2O
     h_w_molar = h_w_molar
-    h_molar = (1 - x_N) * h_w_molar + h_crit * s
-    result = h_molar
+    h_molar = (1 - x_N) * h_w_molar + h_c * s
     MW = x_N * MW_LiBr + (1 - x_N) * MW_H2O
-    print("MW = {}".format(MW))
+    #print("MW = {}".format(MW))
     result = h_molar / MW
     return result
 
-def specificMassEntropy(T,x):
+def massSpecificEntropy(T,x):
     """Inputs:  T = Temperature / [Kelvin]
          x = mass fraction LiBr
 Outputs: s = mass specific entropy / [J/kg-K]
+
+Based on table 8 and equation (5) in reference.
 """
+    
     a=[1.53091,-4.52564, 698.302,-21666.4,-1475.33,0.0847012,-6.59523,
        -29533.1,0.00956314,-0.188679,9.31752,5.78104,13893.1,-17176.2,
        415.108,-55564.7,-0.00423409,30.5242,-1.67620,14.8283,0.00303055,
@@ -176,7 +186,7 @@ Outputs: s = mass specific entropy / [J/kg-K]
         .format(s_crit_molar))
         
     TK = T
-    x_N = molefraction(x)    
+    x_N = molefraction(x)
     s = 0
     for i in range(len(a)):
          s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i] * (T_c / (TK - T_0)) ** t[i]
@@ -189,6 +199,93 @@ Outputs: s = mass specific entropy / [J/kg-K]
     result = s_molar / MW
     return result
     
+def massSpecificHeat(T,x):
+    """Inputs:  T = Temperature / [Kelvin]
+         x = mass fraction LiBr
+Outputs: cp = mass specific heat / [J/kg-K]
+
+Based on Table 6 and equation (3) of reference.
+"""
+    a = [-14.2094,40.4943,111.135,229.980,1345.26,-0.0141010,0.0124977,-0.000683209]
+    m = [2,3,3,3,3,2,1,1]
+    n = [0,0,1,2,3,0,3,2]
+    t = [0,0,0,0,0,2,3,4]
+    Cp_t = 76.0226e3 # [J/kmol-K]
+    T_c=647.096 # [K]
+    T_0 = 221 # [K] "is a nonlinear parameter of the equations"
+    TK = T
+    x_N = molefraction(x)
+    s=0
+    for i in range(len(a)):
+        s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i] * (T_c / (TK - T_0)) ** t[i]
+
+    Qu_water = 0.0
+    Cp_w_mass = PropsSI('C','T',TK,'Q',Qu_water,'water') # J/kg-K
+    Cp_w_molar = Cp_w_mass * MW_H2O
+    Cp_molar = (1 - x_N) * Cp_w_molar + Cp_t * s
+    MW = x_N * MW_LiBr + (1 - x_N) * MW_H2O
+    result = Cp_molar / MW
+    return result
+    
+def twoPhaseProps(h,P,z):
+    """Some notes.
+    This function returns the quality, temperature and liquid composition of a
+    2-phase mixture of liquid lithium bromide-water and water vapor at specific
+    enthalpy h, pressure P, and overall composition, z.
+    
+    h is expected to be in the unit system EES has been configured to operate
+    in which can be J/kg or kJ/kg
+
+    P is pressure/bar.
+
+    The compositions, z and x are assumed to be the lithium bromide  mass
+    fraction if EES is configured to operate with specific properties on a mass
+    basis.  If EES is configured to operate on a  molar basis, z and x are
+    assumed to be the lithium bromide mole fraction.
+    
+    The temperature, T, is assumed to be in the temperature units specified in
+    the EES Unit System dialog, which can be C, K, F, or K.
+
+    Q is the quality (or vapor fraction) on a mass basis.
+    x is the lithium bromide mass fraction of the liquid phase.
+
+    We observe that all the lithium bromide mass is in the liquid phase.
+    Therefore, a mass balance requires (1 - Q) x = z.
+    An enthalpy balance gives simply h = (1-Q) h_liquid + Q h_vapor.
+    Rearranging, (h - h_liquid) = Q (h_vapor - h_liquid).
+    Therefore we have two equations to solve for Q and x.
+    Equilibrium requires T_liquid = T_vapor, so we can use exisiting functions.
+    """
+    P_pascal = P * 1e5
+    Q, T, x = 0, 0, 0
+    Q = -100	# subcooled
+    x = z
+    T = temperature(P, x) 
+    hL = massSpecificEnthalpy(T,x)
+    if (h == hL): Q = 0
+    if (h <= hL): return Q, T, x
+
+    Q = 0.1
+    for iter in range(100):
+        Qlast = Q
+        x = z / (1. - Q)
+        T = temperature(P, x) 
+        hL = massSpecificEnthalpy(T,x)
+        hv = 0
+        if (h > hL):
+            Q_vapor = 1.
+            hv = PropsSI('H','T',T,'Q',Q_vapor,'Water')
+            hfg = hv - hL
+            Q = (h - hL) / (hfg)
+            # qq = (x - z) / x
+        else:
+            Q = 0.
+        print("{},h={},P={},z={},Q={},x={},T={},hL={},hv={}"
+        .format(iter,h,P,z,Q,x,T,hL,hv))
+        if (abs(Q - Qlast) < 0.00001) and (iter > 5):
+            break
+    return Q, T, x
+
 if __name__ == "__main__":
     # Unit testing
     # Pressure (cf table 6.1, or rather LiBrSS7B.EES (slight difference))
@@ -229,8 +326,18 @@ if __name__ == "__main__":
     # Confer documentation for h_LiBrH2O
     for TC,x,h_expected in ((50,0.5,105e3),):
         T = C2K(TC)
-        h = specificMassEnthalpy(T,x)
+        h = massSpecificEnthalpy(T,x)
         print("T,x = {} C, {} -> h = {} J/kg, expected {}".format(TC,x,h,h_expected))
+    for TCvar in np.linspace(20,80,10):
+        T = C2K(TCvar)
+        h = massSpecificEnthalpy(T,x)
+        print("T,x = {:.3f} C, {} -> h = {} J/kg".format(TCvar,x,h))
+    TC = 70.
+    for xvar in np.linspace(0.2,0.8,10):
+        T = C2K(TC)
+        h = massSpecificEnthalpy(T,xvar)
+        print("T,x = {} C, {:0.3f} -> h = {} J/kg".format(TC,xvar,h))
+        
     print("By the way, pure water @ 0 deg C, quality 0 has enthalpy {} J/kg"
         .format(PropsSI('H','T',273.16,'Q',0,'water')))
     T_crit = PropsSI('water','Tcrit')
@@ -244,8 +351,28 @@ if __name__ == "__main__":
     # Confer documentation for s_LiBrH2O
     for TC,x,s_expected in ((50.0,0.5,0.3519e3),):
         T = C2K(TC)
-        s = specificMassEntropy(T,x)
+        s = massSpecificEntropy(T,x)
         print("T,x = {} C, {} -> s = {} J/kg-K, expected {}".format(TC,x,s,s_expected))
     
     # Confer documentation for Cp_LiBrH2O
+    for TC,x,Cp_expected in ((50.0,0.5,2.183e3),):
+        T = C2K(TC)
+        Cp = massSpecificHeat(T,x)
+        print("T,x = {} C, {} -> Cp = {} J/kg-K, expected {}"
+            .format(TC,x,Cp,Cp_expected))
+    
+    # Confer documentation for 
+    P1, P2 = 10e3/1e5, 1e3/1e5 # [bar]
+    TC1 = 70.0 # [C]
+    x1 = 0.6 # [kg/kg]
+    T1 = C2K(TC1)
+    h1 = massSpecificEnthalpy(T1,x1)
+    print("T={}, x={} -> h = {}, P (unused) = {}".format(T1,x1,h1,P1))
+    # Throttle to lower pressure"
+    h2 = h1
+    z2 = x1
+    QTx2 = twoPhaseProps(h2,P2,z2)
+    # Solution:
+    QTx2_expected = 0.0146,C2K(48.6),0.6089 # [dim], [C], [dim]
+    print("Got QTx = {}, expected {}".format(QTx2, QTx2_expected))
     
