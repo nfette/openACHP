@@ -180,10 +180,10 @@ Based on table 8 and equation (5) in reference.
     P_crit = PropsSI('water','pcrit')
     s_crit = PropsSI('S','T',T_crit,'P',P_crit,'water') # J/kg-K
     s_crit_molar = s_crit * MW_H2O
-    print("By the way, pure water @ critical point has entropy {} J/kg-K"
-        .format(s_crit))
-    print("By the way, pure water @ critical point has entropy {} J/kmol-K"
-        .format(s_crit_molar))
+    #print("By the way, pure water @ critical point has entropy {} J/kg-K"
+    #    .format(s_crit))
+    #print("By the way, pure water @ critical point has entropy {} J/kmol-K"
+    #    .format(s_crit_molar))
         
     TK = T
     x_N = molefraction(x)
@@ -256,7 +256,7 @@ def twoPhaseProps(h,P,z):
     Therefore we have two equations to solve for Q and x.
     Equilibrium requires T_liquid = T_vapor, so we can use exisiting functions.
     """
-    P_pascal = P * 1e5
+    #P_pascal = P * 1e5
     Q, T, x = 0, 0, 0
     Q = -100	# subcooled
     x = z
@@ -281,10 +281,18 @@ def twoPhaseProps(h,P,z):
         else:
             Q = 0.
         print("{},h={},P={},z={},Q={},x={},T={},hL={},hv={}"
-        .format(iter,h,P,z,Q,x,T,hL,hv))
+            .format(iter,h,P,z,Q,x,T,hL,hv))
         if (abs(Q - Qlast) < 0.00001) and (iter > 5):
             break
     return Q, T, x
+
+def massSpecificGibbs(T,x):
+    h = massSpecificEnthalpy(T,x)
+    s = massSpecificEntropy(T,x)
+    g = h - T * s
+    return g
+
+
 
 if __name__ == "__main__":
     # Unit testing
