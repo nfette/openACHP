@@ -1,0 +1,50 @@
+{m_a=1}
+{x_c=0.999}
+{x_a=0.371}
+x_b=x_a-0.1
+T_con=40+273.15
+T_eva=-10+273.15
+T_abs=40+273.15
+eff_p=0.75
+P_low=1.7
+P_high=13.5
+{COP = 0.35}
+
+"Point#1"
+CALL NH3H2O(123,T_abs, P_low, x_a: T_1, P_1, x_1, h_1, s_1, u_1, v_1, q_1)
+m_a = m_b+m_c
+m_a*h_1+Q_abs=m_b*h_6+m_c*h_10
+m_a*x_a=m_b*x_b+m_c*x_c
+	
+"Point#2"
+W_pressure=m_a*v_1*(P_high-P_low)
+m_a*h_1+W_total_in=m_a*h_2
+{W_pressure = W_total_in}
+W_pressure = W_total_in * eff_impeller
+eff_impeller = 0.6
+{CALL NH3H2O(235, P_high, x_a, s_1: T_2s, P_2, x_2, h_2, s_2, u_2, v_2, q_2)}
+CALL NH3H2O(234, P_high, x_a, h_2: T_2h, P_2h, x_2h, h_2h, s_2h, u_2h, v_2h, q_2h)
+
+"Point#4"
+CALL NH3H2O(238,P_high,x_b,0: T_4, P_4, x_4, h_4, s_4, u_4, v_4, q_4)
+
+"Point#6"
+CALL NH3H2O(234,P_low, x_4,h_4: T_6, P_6, x_6, h_6, s_6, u_6, v_6, q_6)
+
+"Point#7"
+CALL NH3H2O(128,T_4,P_high,1: T_7, P_7, x_7, h_7, s_7, u_7, v_7, q_7)
+m_a*h_2+Q_gen=m_b*h_4+m_c*h_7
+
+"Point#8"
+CALL NH3H2O(123,T_con,P_high,x_7: T_8, P_8, x_8, h_8, s_8, u_8, v_8, q_8)
+m_c*h_7=m_c*h_8+Q_con
+
+"Point#9"
+CALL NH3H2O(234,P_low,x_7,h_8: T_9, P_9, x_9, h_9, s_9, u_9, v_9, q_9)
+
+"Point#10"
+CALL NH3H2O(128,T_eva,P_low,1: T_10, P_10, x_10, h_10, s_10, u_10, v_10, q_10)
+Q_eva+m_c*h_9=m_c*h_10
+
+"Output"
+COP=Q_eva/(Q_gen+W_total_in)
