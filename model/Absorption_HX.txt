@@ -50,7 +50,7 @@ CALL NH3H2O(238,P_high,x_c,1: T_7, P_7, x_7, h_7, s_7, u_7, v_7, q_7)
 m_a*h_3+Q_gen=m_b*h_4+m_c*h_7
 
 "Point#8"
-CALL NH3H2O(123,T_con,P_high,x_7: T_8, P_8, x_8, h_8, s_8, u_8, v_8, q_8)
+CALL NH3H2O(128,T_con,P_high,0: T_8, P_8, x_8, h_8, s_8, u_8, v_8, q_8)
 m_c*h_7=m_c*h_8+Q_con
 S_con=m_c*(s_8-s_7)+Q_con/T_0
 S_tv2 = m_c*(s_9-s_8)
