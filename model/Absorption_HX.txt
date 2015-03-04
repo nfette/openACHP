@@ -1,9 +1,9 @@
 $UnitSystem SI K kPa kJ mass deg
 
 m_a = 1 [kg/s]
-x_c = 0.999 [kg/kg] "Ammonia mass fraction in the condensor stream"
-x_a = 0.371 [kg/kg] "Ammonia mass fraction in the absorber out stream"
-x_b = x_a - 0.1 [kg/kg] "Ammonia mass fraction in the other stream"
+x_c = 0.999 [kg/kg] "Very strong stream ammonia mass fraction (condensor, evaporator)"
+x_a = 0.371 [kg/kg] "Strong stream ammonia mass fraction (flows from absorber to generator)"
+x_b = x_a - 0.1 [kg/kg] "Weak stream ammonia mass fraction in the other stream (flows from generator to absorber)"
 
 {T_con=40+273.15 [K]
 T_eva=-10+273.15 [K]
@@ -24,8 +24,10 @@ S_abs = m_a * s_1 - m_b * s_6 - m_c * s_10 + Q_abs / T_0
 
 "Point#2"
 CALL NH3H2O(234,P_high,x_a,h_2a: T_2, P_2, x_2, h_2, s_2, u_2, v_2, q_2)
-W_p_mech = m_a * v_1 * (P_high - P_low) * convert(bar, kPa)
+W_p_delivered = m_a * v_1 * (P_high - P_low) * convert(bar, kPa)
 m_a * h_1 + W_p_mech = m_a * h_2a
+W_p_delivered = W_p_mech * eff_impeller
+eff_impeller = 0.9
 W_p_elec = W_p_mech / eff_p
 S_p = m_a * (s_2 - s_1)
 
