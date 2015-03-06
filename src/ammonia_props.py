@@ -49,7 +49,8 @@ def molarMass(self):
 State.molarMass = molarMass
 dgdxvars = ['dgdx','mu1','mu2']
 State2 = namedtuple('State2',dgdxvars)
-State3 = namedtuple('State3',['dhdx','h1','h2'])
+State3 = namedtuple('State3',['dhdx','h1','h2'])    
+
 
 class ammoniaWaterFunc:
     def __init__(self,mydll,code,S=""):
@@ -85,7 +86,14 @@ class ammoniaWaterFunc:
         h1 = state0.h + (1 - state0.x) * dhdx
         h2 = state0.h - state0.x * dhdx
         return State3(dhdx,h1,h2)
-
+    def massSpecificHeat(self,deltaT=1e-4,**args):
+        print("deltaT = {} K".format(deltaT))
+        state0 = self.call(*standardOrder(args,self.code))
+        args['T'] += deltaT
+        state1 = self.call(*standardOrder(args,self.code))
+        dhdT = (state1.h - state0.h) / deltaT
+        return dhdT
+        
 class AmmoniaProps:
     def __init__(self,path = defaultPath):
         self.mydll = ees_interface.EES_DLP(path)

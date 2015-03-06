@@ -14,24 +14,36 @@ import inspect, os
 me = inspect.getfile(inspect.currentframe())
 me2 = os.path.basename(me)
 
-if __name__ == "__main__":
+def main():
     T,Qu = C2K(50), 1.0
     g_water = PropsSI("G","T",T,"Q",Qu,"water")
-    
+
     mu_1 = []
     g_liquid = []
-    xvals = linspace(0.01,0.99)
-    for x in xvals:
+    xvals = []
+    for x in linspace(0.01,0.99):
         g = libr_props.massSpecificGibbs(T,x)
+        #P = 0
+        try:
+            P = libr_props.pressure(T, x)
+        except:
+            print("Crystallized!")
+            break
+        xvals.append(x)
         g_liquid.append(g)
         mu = (1. / x) * (g - (1. - x) * g_water)
         mu_1.append( mu )
-        print("T,x = {}, {} -> g = {} J/kg, mu = {}".format(T,x,g,mu))
+        print("T,x = {}, {} -> P = {} bar, g = {} J/kg, mu = {}".format(T,x,P,g,mu))
     
     plt.close('all')
-    plt.plot(xvals, mu_1, label="mu")
-    plt.plot(xvals, g_liquid, label="g")
+    plt.xlabel("LiBr mass fraction in liquid phase")
+    plt.ylabel("Potential function in liquid phase")
+    plt.xlim(0,1)
+    plt.plot(xvals, mu_1, label="mu_LiBr")
+    plt.plot(xvals, g_liquid, label="g_liquid")
     plt.legend(loc='best')
     plt.title("g_water_vapor = {:g} J/kg".format(g_water))
     plt.savefig('../img/{}.figure{}.png'.format(me2,plt.gcf().number))
     
+if __name__ == "__main__":
+    main()

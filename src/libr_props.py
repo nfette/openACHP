@@ -17,7 +17,7 @@ import numpy as np
 MW_LiBr = 86.85 # kg/kmol
 MW_H2O = 18.015 # kg/kmol
 
-def massfraction(x):
+def mole2massFraction(x):
     """input: mole fraction, x, of LiBr"""
     return x * MW_LiBr / (x * MW_LiBr + (1 - x) * MW_H2O)
     
@@ -175,11 +175,12 @@ Based on table 8 and equation (5) in reference.
     t = [0,0,0,0,0,1,1,1,2,2,2,2,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5]
     T_c = 647.096 # [K]
     T_0 = 221 # [K] "is a nonlinear parameter of the equations"
-    s_c = 79.3933 # [J/gmol-K]
+    #s_c = 79.3933 # [J/gmol-K]
     T_crit = PropsSI('water','Tcrit') # [K]
     P_crit = PropsSI('water','pcrit')
     s_crit = PropsSI('S','T',T_crit,'P',P_crit,'water') # J/kg-K
     s_crit_molar = s_crit * MW_H2O
+    s_c = s_crit_molar
     #print("By the way, pure water @ critical point has entropy {} J/kg-K"
     #    .format(s_crit))
     #print("By the way, pure water @ critical point has entropy {} J/kmol-K"
@@ -303,7 +304,7 @@ if __name__ == "__main__":
     #    print("(T,x) = ({},{}) -> P = {}".format(TC,x,P))
     # Confer documentation for massfraction_LiBrH2O
     for x,w_expected in ((0.1718, 0.50),):
-        w = massfraction(x)
+        w = mole2massFraction(x)
         print("Mole fraction {} -> mass fraction {}, expected {}".format(
             x,w,w_expected))
     # Confer documentation for molefraction_LiBrH2O
