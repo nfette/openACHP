@@ -177,7 +177,7 @@ Based on table 8 and equation (5) in reference.
     T_0 = 221 # [K] "is a nonlinear parameter of the equations"
     #s_c = 79.3933 # [J/gmol-K]
     T_crit = PropsSI('water','Tcrit') # [K]
-    P_crit = PropsSI('water','pcrit')
+    P_crit = PropsSI('water','pcrit') # [Pa]
     s_crit = PropsSI('S','T',T_crit,'P',P_crit,'water') # J/kg-K
     s_crit_molar = s_crit * MW_H2O
     s_c = s_crit_molar
@@ -190,7 +190,8 @@ Based on table 8 and equation (5) in reference.
     x_N = molefraction(x)
     s = 0
     for i in range(len(a)):
-         s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i] * (T_c / (TK - T_0)) ** t[i]
+         s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i]
+             * (T_c / (TK - T_0)) ** t[i]
     #s_w=entropy(Water,T=T,x=0)
     Qu_water = 0.0
     s_w_mass = PropsSI('S','T',TK,'Q',Qu_water,'water') # J/kg-K
@@ -207,7 +208,8 @@ Outputs: cp = mass specific heat / [J/kg-K]
 
 Based on Table 6 and equation (3) of reference.
 """
-    a = [-14.2094,40.4943,111.135,229.980,1345.26,-0.0141010,0.0124977,-0.000683209]
+    a = [-14.2094,40.4943,111.135,229.980,
+         1345.26,-0.0141010,0.0124977,-0.000683209]
     m = [2,3,3,3,3,2,1,1]
     n = [0,0,1,2,3,0,3,2]
     t = [0,0,0,0,0,2,3,4]
@@ -218,7 +220,8 @@ Based on Table 6 and equation (3) of reference.
     x_N = molefraction(x)
     s=0
     for i in range(len(a)):
-        s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i] * (T_c / (TK - T_0)) ** t[i]
+        s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i]
+            * (T_c / (TK - T_0)) ** t[i]
 
     Qu_water = 0.0
     Cp_w_mass = PropsSI('C','T',TK,'Q',Qu_water,'water') # J/kg-K
@@ -293,7 +296,45 @@ def massSpecificGibbs(T,x):
     g = h - T * s
     return g
 
+def massDensity(T,x):
+    """This function returns the density of a liquid lithium bromide water
+solution given the temperature and composition, based on equation 2 and table
+5 in Patek and Klomfar, Int. J. of Refrigeration, Vol 29, pp. 566-578, (2006).
 
+Inputs:
+    T = temperature / K
+    x  = mass fraction of lithium bromide in the liquid
+Outputs:
+    density in units of kg/m3
+"""    
+    a=[1.746,4.709]
+    m=[1,1]
+    t=[0,6]
+    
+    rho_crit_mass = PropsSI('water','RHOCRIT') # [kg/m3]
+    rho_crit_molar = rho_crit_mass / MW_H2O # [kmol/m3]
+    T_crit = PropsSI('water','Tcrit') # [K]
+    print("""By the way, water critical properties:
+T_crit = {} K,
+rho_crit_mass = {} kg/m3,
+rho_crit_molar = {} kmol/m3""".format(T_crit,rho_crit_mass,rho_crit_molar))
+    
+    #rho_c = 17873 # [gmol/m^3]
+    T_c=647.096 # [K]
+    T_0=221 # [K]
+    x_N = molefraction(x)
+    # saturated liquid water density
+    Qu_water = 0.0
+    rhomass_sat = PropsSI('D','T',T,'Q',Qu_water,'water') # kg/m3
+    rhomolar_sat = rhomass_sat / MW_H2O
+
+    s=0
+    for i in range(len(a)):
+        s = s + a[i] * (x_N ** m[i]) * ((T / T_c) ** t[i])
+    d_molar = (1 - x_N) * rhomolar_sat + rho_crit_molar * s
+    MW = x_N * MW_LiBr + (1 - x_N) * MW_H2O
+    result = d_molar * MW # kg/m^3
+    return result
 
 if __name__ == "__main__":
     # Unit testing
@@ -385,3 +426,10 @@ if __name__ == "__main__":
     QTx2_expected = 0.0146,C2K(48.6),0.6089 # [dim], [C], [dim]
     print("Got QTx = {}, expected {}".format(QTx2, QTx2_expected))
     
+    # Confer documentation for density
+    TC, w = 50, 0.5
+    rho, rho_expected = massDensity(C2K(TC), w), 1522 # kg/m3
+    print("T, w = {} K, {} kg/kg -> rho = {} kg/m3, expected {}"
+        .format(T, w, rho, rho_expected))
+
+    ()
