@@ -1,4 +1,4 @@
-{ABSORP4}
+{ABSORP5}
 {!Absorption cycle calculation using an external Procedure}
 
 "Based on a sample file 'absorp.ees' provided with EES. The file was probably created by
@@ -34,7 +34,8 @@ END
 P_high=13.5 [bar]
 P_low=1.7 [bar]
 T_cond_C = 27 [C] "(Parametric)"
-T_into_gen_C = 80 [C] "State point 1" "(Parametric)"
+{T_into_gen_C = 80 [C]} "State point 1" "(Parametric)"
+epsilon = 0.689 "Alternate input for SHX"
 x_into_gen = 0.38
 T_out_gen_C = 115 [C] "State point 2 and 3"
 T_evap_C = -5 [C]
@@ -47,7 +48,7 @@ T_out_abs = TK(T_out_abs_C)
 
 "!Generator"
 {P_high=13.5 [bar]}
-m_dot_1=1 	"reference flowrate"
+m_dot_1 = 1.0 [kg/s]	"reference flowrate"
 CALL NH3H2O(123, T_into_gen, P_high, x_into_gen: T[1], P[1], x[1], h[1], s[1], u[1], v[1], Qu[1])
 CALL NH3H2O(128, T_out_gen, P_high, 1: T[2], P[2], x[2], h[2], s[2], u[2], v[2], Qu[2])
 CALL NH3H2O(128, T_out_gen, P_high, 0: T[3], P[3], x[3], h[3], s[3], u[3], v[3], Qu[3])
@@ -90,7 +91,7 @@ CALL NH3H2O(123, T[7], P_high, x[3]: T_m_9, P_m_9, x_m_9, h_m_9, s_m_9, u_m_9, v
 epsilon=(h[3]-h_e)/(h[3]-h_m_9)
 DELTAT_1_SHX = (T[3] - T[1])
 DELTAT_2_SHX = (T[9] - T[8])
-{ LMTD_SHX = (DELTAT_1_SHX - DELTAT_2_SHX) / LN(DELTAT_1_SHX / DELTAT_2_SHX) }
+LMTD_SHX = (DELTAT_1_SHX - DELTAT_2_SHX) / LN(DELTAT_1_SHX / DELTAT_2_SHX)
 mdotcp_ave_SHX_1 = m_dot_3 * (h[3] - h[9]) / (T[3] - T[9])
 mdotcp_ave_SHX_2= m_dot_1 * (h[1] - h[8]) / (T[1] - T[8])
 T_ave_SHX_1 = 0.5 * (T[3] + T[9])
