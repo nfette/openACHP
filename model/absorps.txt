@@ -1,5 +1,19 @@
-{ABSORP2}
+{ABSORP3}
 {!Absorption cycle calculation using an external Procedure}
+
+"Based on a sample file 'absorp.ees' provided with EES. The file was probably created by
+	authors of book 'Absorption chillers and heat pumps' by Herold, Radermacher, and Klein.
+	Note: we could call REFPROPs for the properties, but only with the special version of EES (extra $$$).
+History:
+revised 2015-01-08 by Nicholas Fette to add internal heat exchange and parametric table.
+	Note that heat exchanger effectiveness cannot be independently specified without removing
+	one of the assumptions. The parametric solution shows that this set of assumptions
+	can result in non-physical solution with effectiveness greater than 1.0.
+	Also tried: manually tuning the specified temperatures to keep epsilon constant.
+	Also note: over the range of parameters, COP becomes negative; this is not a problem,
+	it just indicates the limits where the system would be turned off.
+revised 2015-05-04 by Nicholas Fette to add comments.
+"
 
 "This EES program calculates the performance of a simple absorption refrigeration cycle using ammonia-water as the refrigerant-absorbent working fluid.  Ammonia-water property data are not truly built-into EES.  However, EES can access external procedures, written in C or Pascal, with the CALL statement.  The NH3H2O procedure used in this problem is an example of an external procedure.  
 
@@ -12,11 +26,16 @@ $TabStops 0.2 2.5 in
 FUNCTION tk(T)	{converts from C to K}
 	tk:=ConvertTemp('C', 'K', T) "It is easier to type tk(T) than ConvertTemp('C','K',T)"
 END
+
 "!Magic Numbers"
+"Solution heat exchanger effectiveness:"
 {epsilon = 0.689}
-{T_cond_C = 27 [C]}
-{T_into_gen_C = 80 [C]}
-T_out_gen_C = 115 [C]
+P_high=13.5 [bar]
+P_low=1.7 [bar]
+T_cond_C = 27 [C] "(Parametric)"
+T_into_gen_C = 80 [C] "State point 1" "(Parametric)"
+x_into_gen = 0.38
+T_out_gen_C = 115 [C] "State point 2 and 3"
 T_evap_C = -5 [C]
 T_out_abs_C = T_cond_C
 T_cond = TK(T_cond_C)
@@ -26,9 +45,9 @@ T_evap = TK(T_evap_C)
 T_out_abs = TK(T_out_abs_C)
 
 "!Generator"
-P_high=13.5 [bar]
+{P_high=13.5 [bar]}
 m_dot_1=1 	"reference flowrate"
-CALL NH3H2O(123, T_into_gen, P_high, 0.38: T[1], P[1], x[1], h[1], s[1], u[1], v[1], Qu[1])
+CALL NH3H2O(123, T_into_gen, P_high, x_into_gen: T[1], P[1], x[1], h[1], s[1], u[1], v[1], Qu[1])
 CALL NH3H2O(128, T_out_gen, P_high, 1: T[2], P[2], x[2], h[2], s[2], u[2], v[2], Qu[2])
 CALL NH3H2O(128, T_out_gen, P_high, 0: T[3], P[3], x[3], h[3], s[3], u[3], v[3], Qu[3])
 m_dot_1=m_dot_2+m_dot_3  	"overall mass balance"
@@ -40,7 +59,7 @@ CALL NH3H2O(123, T_cond , P_high, x[2]: T[4], P[4], x[4], h[4], s[4], u[4], v[4]
 Q_cond=(h[2]-h[4])*m_dot_2
 
 "!Throttle"
-P_low=1.7 [bar]
+{P_low=1.7 [bar]}
 
 CALL NH3H2O(234,P_low,x[2], h[4]: T[5], P[5], x[5], h[5], s[5], u[5], v[5], Qu[5]) "isenthalpic"
 
@@ -60,12 +79,17 @@ CALL NH3H2O(234, P_low, x[9], h[9]:T[10], P[10], x[10], h[10], s[10], u[10], v[1
 {h_7=h_8}	 "neglect pump work"
 CALL NH3H2O(234, P_high, x[7], h[7]: T[8], P[8], x[8], h[8], s[8], u[8], v[8], Qu[8])
 
-"!Generator Heat Exchanger"
+"!Solution Heat Exchanger"
+"Hot side:   3 -> 9"
+"Cold side: 1 <- 8"
 m_dot_1*(h[1]-h[8])=m_dot_3*(h[3]-h_e)
 CALL NH3H2O(234, P_high, x[3], h_e: T[9], P[9], x[9], h[9], s[9], u[9], v[9], Qu[9])
 CALL NH3H2O(123, T[7], P_high, x[3]: T_m_9, P_m_9, x_m_9, h_m_9, s_m_9, u_m_9, v_m_9, Qu9m)
 "T_7=T_8 is the lowest possible temperature at state 9"
 epsilon=(h[3]-h_e)/(h[3]-h_m_9)
+DELTAT_1_SHX = (T[3] - T[1])
+DELTAT_2_SHX = (T[9] - T[8])
+{ LMTD_SHX = (DELTAT_1_SHX - DELTAT_2_SHX) / LN(DELTAT_1_SHX / DELTAT_2_SHX) }
 
 "!Overall"
 COP=Q_evap/Q_gen
