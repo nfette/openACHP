@@ -1,4 +1,4 @@
-{ABSORP3}
+{ABSORP4}
 {!Absorption cycle calculation using an external Procedure}
 
 "Based on a sample file 'absorp.ees' provided with EES. The file was probably created by
@@ -13,6 +13,7 @@ revised 2015-01-08 by Nicholas Fette to add internal heat exchange and parametri
 	Also note: over the range of parameters, COP becomes negative; this is not a problem,
 	it just indicates the limits where the system would be turned off.
 revised 2015-05-04 by Nicholas Fette to add comments.
+revised 2015-05-12 by Nicholas Fette to add new table and more details about heat exchange.
 "
 
 "This EES program calculates the performance of a simple absorption refrigeration cycle using ammonia-water as the refrigerant-absorbent working fluid.  Ammonia-water property data are not truly built-into EES.  However, EES can access external procedures, written in C or Pascal, with the CALL statement.  The NH3H2O procedure used in this problem is an example of an external procedure.  
@@ -90,6 +91,11 @@ epsilon=(h[3]-h_e)/(h[3]-h_m_9)
 DELTAT_1_SHX = (T[3] - T[1])
 DELTAT_2_SHX = (T[9] - T[8])
 { LMTD_SHX = (DELTAT_1_SHX - DELTAT_2_SHX) / LN(DELTAT_1_SHX / DELTAT_2_SHX) }
+mdotcp_ave_SHX_1 = m_dot_3 * (h[3] - h[9]) / (T[3] - T[9])
+mdotcp_ave_SHX_2= m_dot_1 * (h[1] - h[8]) / (T[1] - T[8])
+T_ave_SHX_1 = 0.5 * (T[3] + T[9])
+T_ave_SHX_2 = 0.5 * (T[1] + T[8])
+
 
 "!Overall"
 COP=Q_evap/Q_gen
