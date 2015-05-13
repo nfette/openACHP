@@ -1,0 +1,74 @@
+{ABSORP2}
+{!Absorption cycle calculation using an external Procedure}
+
+"This EES program calculates the performance of a simple absorption refrigeration cycle using ammonia-water as the refrigerant-absorbent working fluid.  Ammonia-water property data are not truly built-into EES.  However, EES can access external procedures, written in C or Pascal, with the CALL statement.  The NH3H2O procedure used in this problem is an example of an external procedure.  
+
+Instructions for using the NH3H2O procedure can be obtained with the Function Info command in the Options menu.  Select the External Routines button at the top right of the Function Info dialog window.  Click on the NH3H2O function name in the function list and select the Function Info button.  See Chapter 6 in the manual for details on writing external procedures."
+
+{Two formatting options are shown; the underscore followed by a number shows as a subscript on the Formatted Equations Window and m_dot shows as an m with a dot over the top.  Array notation appears the same on the Formatted Equations Window but must be typed as T[1], T[2], etc.}
+
+$TabStops 0.2 2.5 in
+
+FUNCTION tk(T)	{converts from C to K}
+	tk:=ConvertTemp('C', 'K', T) "It is easier to type tk(T) than ConvertTemp('C','K',T)"
+END
+"!Magic Numbers"
+{epsilon = 0.689}
+{T_cond_C = 27 [C]}
+{T_into_gen_C = 80 [C]}
+T_out_gen_C = 115 [C]
+T_evap_C = -5 [C]
+T_out_abs_C = T_cond_C
+T_cond = TK(T_cond_C)
+T_into_gen = TK(T_into_gen_C)
+T_out_gen = TK(T_out_gen_C)
+T_evap = TK(T_evap_C)
+T_out_abs = TK(T_out_abs_C)
+
+"!Generator"
+P_high=13.5 [bar]
+m_dot_1=1 	"reference flowrate"
+CALL NH3H2O(123, T_into_gen, P_high, 0.38: T[1], P[1], x[1], h[1], s[1], u[1], v[1], Qu[1])
+CALL NH3H2O(128, T_out_gen, P_high, 1: T[2], P[2], x[2], h[2], s[2], u[2], v[2], Qu[2])
+CALL NH3H2O(128, T_out_gen, P_high, 0: T[3], P[3], x[3], h[3], s[3], u[3], v[3], Qu[3])
+m_dot_1=m_dot_2+m_dot_3  	"overall mass balance"
+m_dot_1*x[1]=m_dot_2*x[2]+m_dot_3*x[3]  	"ammonia balance"
+h[1]*m_dot_1-h[2]*m_dot_2-h[3]*m_dot_3+Q_gen=0   "energy balance"
+
+"!Condenser"
+CALL NH3H2O(123, T_cond , P_high, x[2]: T[4], P[4], x[4], h[4], s[4], u[4], v[4], Qu[4])
+Q_cond=(h[2]-h[4])*m_dot_2
+
+"!Throttle"
+P_low=1.7 [bar]
+
+CALL NH3H2O(234,P_low,x[2], h[4]: T[5], P[5], x[5], h[5], s[5], u[5], v[5], Qu[5]) "isenthalpic"
+
+"!Evaporator"
+CALL NH3H2O(123, T_evap, P_low, x[2]: T[6], P[6], x[6], h[6], s[6], u[6], v[6], Qu[6])
+Q_evap=m_dot_2*(h[6]-h[5])
+CALL NH3H2O(238, P_low, x[2], 1: T_min, P_m_6, x_m_6, h_m_6, s_m_6, u_m_6, v_m_6, Qu6m)
+          "T6m is the temperature at which all of the refrigerant is vapor"
+
+"!Absorber"
+CALL NH3H2O(123, T_out_abs, P_low,x[1]: T[7], P[7], x[7], h[7], s[7], u[7], v[7], Qu[7])
+{h[9]=h[10]} 	"isenthalpic"
+h[6]*m_dot_2+h[10]*m_dot_3-Q_abs=h[7]*m_dot_1 "energy Balance"
+CALL NH3H2O(234, P_low, x[9], h[9]:T[10], P[10], x[10], h[10], s[10], u[10], v[10], Qu[10])
+
+"!Pump"
+{h_7=h_8}	 "neglect pump work"
+CALL NH3H2O(234, P_high, x[7], h[7]: T[8], P[8], x[8], h[8], s[8], u[8], v[8], Qu[8])
+
+"!Generator Heat Exchanger"
+m_dot_1*(h[1]-h[8])=m_dot_3*(h[3]-h_e)
+CALL NH3H2O(234, P_high, x[3], h_e: T[9], P[9], x[9], h[9], s[9], u[9], v[9], Qu[9])
+CALL NH3H2O(123, T[7], P_high, x[3]: T_m_9, P_m_9, x_m_9, h_m_9, s_m_9, u_m_9, v_m_9, Qu9m)
+"T_7=T_8 is the lowest possible temperature at state 9"
+epsilon=(h[3]-h_e)/(h[3]-h_m_9)
+
+"!Overall"
+COP=Q_evap/Q_gen
+CheckQ=Q_gen+Q_evap-Q_abs-Q_cond	"Check the overall energy balance"
+
+$EXPORT 'donesolving.txt'

@@ -190,7 +190,7 @@ Based on table 8 and equation (5) in reference.
     x_N = molefraction(x)
     s = 0
     for i in range(len(a)):
-         s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i]
+         s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i] \
              * (T_c / (TK - T_0)) ** t[i]
     #s_w=entropy(Water,T=T,x=0)
     Qu_water = 0.0
@@ -220,7 +220,7 @@ Based on Table 6 and equation (3) of reference.
     x_N = molefraction(x)
     s=0
     for i in range(len(a)):
-        s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i]
+        s = s + a[i] * x_N ** m[i] * abs(0.4 - x_N) ** n[i] \
             * (T_c / (TK - T_0)) ** t[i]
 
     Qu_water = 0.0

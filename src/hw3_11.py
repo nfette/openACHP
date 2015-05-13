@@ -35,7 +35,7 @@ def residualsLiBr(T,P,x,deltaT=1e-4,deltaP=1e-4):
     for i in range(3):
         # TODO: make this a function
         h_liquid = libr_props.massSpecificEnthalpy(T,x)
-        v_liquid = 1 ./ libr_props.massDensity(T,x) # m3/kg
+        v_liquid = 1. / libr_props.massDensity(T,x) # m3/kg
         x_liquid = libr_props.massFraction(T,P)
         cp_liquid = libr_props.massSpecificHeat(T,x)
         # Now let's figure out the other thing

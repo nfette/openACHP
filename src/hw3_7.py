@@ -7,6 +7,7 @@ Created on Mon Mar 02 21:38:51 2015
 from __future__ import print_function
 from hw2_1 import CelsiusToKelvin as C2K
 from CoolProp.CoolProp import PropsSI
+#from CoolProp import AbstractState, QT_INPUTS
 from numpy import linspace
 import libr_props
 import matplotlib.pyplot as plt
@@ -16,7 +17,18 @@ me2 = os.path.basename(me)
 
 def main():
     T,Qu = C2K(50), 1.0
-    g_water = PropsSI("G","T",T,"Q",Qu,"water")
+    g_water = PropsSI("G","T",T,"Q",Qu,"water") # mass-specific gibbs energy
+    # TODO: identify bug to report to CoolProp and fix it.
+    # Maybe just need to expose
+    #     double CoolProp::AbstractState::gibbsmolar(void)
+    # via
+    #     src/wrappers/Python/CoolProp/AbstractState.pxd
+    # eg
+    #     cpdef double gibbsmolar(self) except *
+    # Just to check, we could use this different method, but it has the same problem.
+    #water = AbstractState("HEOS","Water")
+    #water.update(QT_INPUTS, Qu, T)
+    #g_water = water.gibbsmolar() / molarmass
 
     mu_1 = []
     g_liquid = []
