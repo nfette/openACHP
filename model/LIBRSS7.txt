@@ -1,0 +1,160 @@
+"Absorption Chillers and Heat Pumps
+K.E. Herold, R. Radermacher and S.A. Klein
+CRC Press, 1995
+
+Simple LiBr absorption cycle
+"
+"External fluid loops on all four corners - Used in Appendix C"
+{Main example of Section 6.2}
+
+{Press F2 to solve this problem.}
+
+SI=2
+
+{Input data}
+Eff_Hx=.64
+{UAs=.132}
+m[1]=.05
+
+UAa=1.8                         {kW/K}
+UAc=1.2                          {kW/K}
+UAg=1
+UAe=2.25
+
+T[13]=25                         {°C}
+m[13]=.28                       {kg/sec}   
+T[15]=25
+m[15]=.28
+T[11]=100
+m[11]=1.0
+T[17]=10
+m[17]=.4
+
+Q[8]=0
+Q[10]=1.0
+x[4]=X_LIBR(T[4],Phigh,SI)
+X[1]=X_LIBR(T[1],Plow,SI)
+
+T[7]=T_LIBR(Phigh,x[3],SI)                              
+
+{Set  pressures}
+Phigh=pressure(WATER,T=T[8],x=Q[8])
+Plow=pressure(WATER,T=T[10],x=Q[10])
+
+{Heat Exchanger}
+Eff_Hx=(T[4]-T[5])/(T[4]-T[2])                                           {Heat transfer}
+Chot=m[4]*(h[4]-h[5])/(T[4]-T[5])
+Ccold=m[2]*(h[3]-h[2])/(T[3]-T[2])
+Qhx=m[1]*(h[3]-h[2])                                                       {Energy balance}
+Qhx=m[4]*(h[4]-h[5])                                                       {Energy balance}
+Lmtds=((T[4]-T[3])-(T[5]-T[2]))/ln((T[4]-T[3])/(T[5]-T[2]))
+UAs=Qhx/Lmtds
+
+{Desorber}
+m[3]=m[4]+m[7]                                                              {Overall mass balance}
+m[3]*x[3]=m[4]*x[4]                                                        {LiBr balance}
+h[3]*m[3]-h[4]*m[4]-h[7]*m[7]+Qd=0                           {Energy balance}
+Qd=m[11]*(h[11]-h[12])                                               {Energy balance}
+Eff_d=(T[11]-T[12])/(T[11]-T[7])
+
+{Condenser}
+Qc=m[7]*(h[7]-h[8])                                                     {Energy balance}
+Qc=m[15]*(h[16]-h[15])                                               {Energy balance}
+Eff_c=(T[15]-T[16])/(T[15]-T[8])
+
+{Refrigerant Valve}
+h[9]=h[8]                                                                         {Energy balance}
+
+{Evaporator}
+Qe=m[9]*(h[10]-h[9])                                                 {Energy balance}
+Qe=m[17]*(h[17]-h[18])                                             {Energy balance}
+Eff_e=(T[17]-T[18])/(T[17]-T[10])
+
+{Absorber}
+m[10]*h[10]+h[6]*m[6]-Qa-m[1]*h[1]=0                       {Energy balance}
+Qa=m[13]*(h[14]-h[13])                                                {Energy balance}
+Eff_a=(T[14]-T[13])/(T[6]-T[13])
+
+{Solution expansion valve model}
+h[6]=h[5]                                                                         {Energy balance}
+
+{Pump calculation}
+h[2]=h[1]+Pwork/m[1]                                                     {Energy balance}
+Pwork=m[1]*v1*(Phigh-Plow)/1000                                {Pump work model - isentropic}
+
+{Heat Exchanger Models for External Water Loops}
+   {Compute LMTD}
+   Lmtda=(T[6]-T[14]-T[1]+T[13])/ln((T[6]-T[14])/(T[1]-T[13]))
+   Lmtdc=(T[8]-T[15]-T[8]+T[16])/ln((T[8]-T[15])/(T[8]-T[16]))
+   Lmtdg=(T[11]-T[4]-T[12]+T[7])/ln((T[11]-T[4])/(T[12]-T[7]))
+   Lmtde=(T[17]-T[10]-T[18]+T[10])/ln((T[17]-T[10])/(T[18]-T[10]))
+
+   {Equate water loop energy balance to UA*LMTD}
+   Qa=Lmtda*UAa
+   Qc=Lmtdc*UAc
+   Qd=Lmtdg*UAg
+   Qe=Lmtde*UAe
+
+{Trivial mass balances}
+m[2]=m[1]
+m[3]=m[2]                                 
+m[5]=m[4]
+m[6]=m[5]
+m[8]=m[7]
+m[9]=m[8]
+m[10]=m[9]
+
+x[2]=X[1]
+x[3]=x[2] 
+x[5]=x[4]
+x[6]=x[5]
+x[7]=0
+x[8]=x[7]
+x[9]=x[8]
+x[10]=x[9]
+
+{Compute thermodynamic properties}
+h[1]=H_LIBR(T[1],X[1],SI)
+h[2]=H_LIBR(T[2],x[2],SI)
+h[3]=H_LIBR(T[3],x[3],SI)                                       
+h[4]=H_LIBR(T[4],x[4],SI)
+h[5]=H_LIBR(T[5],x[5],SI) 
+CALL Q_LIBR(h[6],Plow,x[6],SI:q6b,T6b,Xl6b,hl6b,hv6b)
+T[6]=T6b
+h[7]=enthalpy(WATER,T=T[7],P=Phigh)
+h7s=enthalpy(WATER,T=T[8],x=1.0)
+h[8]=enthalpy(WATER,T=T[8],x=0)
+T[9]=temperature(WATER,h=h[9],P=Plow)
+h[10]=enthalpy(WATER,T=T[10],x=1)
+h[11]=enthalpy(WATER,T=T[11],x=0.)
+h[12]=enthalpy(WATER,T=T[12],x=0)
+h[13]=enthalpy(WATER,T=T[13],x=0)
+h[14]=enthalpy(WATER,T=T[14],x=0)
+h[15]=enthalpy(WATER,T=T[15],x=0)
+h[16]=enthalpy(WATER,T=T[16],x=0) 
+h[17]=enthalpy(WATER,T=T[17],x=0.)
+h[18]=enthalpy(WATER,T=T[18],x=0.)
+   
+v1=V_LIBR(T[1],X[1],SI)         
+
+{Compute COP}
+COP=m[9]*(h[10]-h[9])/(m[11]*(h[11]-h[12]))
+
+{Set Pressures}
+P[1]=Plow
+P[2]=Phigh
+P[3]=Phigh
+P[4]=Phigh
+P[5]=Phigh
+P[6]=Plow
+P[7]=Phigh
+P[8]=Phigh
+P[9]=Plow
+P[10]=Plow
+
+{Set Vapor Quality}
+Q[1]=0
+Q[4]=0
+Q[6]=Q6b*0.01         {Fraction}
+Q[9]=quality(STEAM_NBS,h=h[9],P=Plow)
+
