@@ -32,10 +32,10 @@ m[17] =0.4 [kg/sec]
 
 Q[8] = 0
 Q[10] = 1.0
-x[4] = X_LIBR(T[4],Phigh,SI)
-X[1] = X_LIBR(T[1],Plow,SI)
+x[4] = x_LiBrH2O(T[4], Phigh) * convert(kg/kg, %)
+X[1] = X_LiBrH2O(T[1], Plow) * convert(kg/kg, %)
 
-T[7] = T_LIBR(Phigh,x[3],SI)                              
+T[7] = T_LiBrH2O(Phigh, x[3] * convert(%, kg/kg))
 
 {Set  pressures}
 Phigh = pressure(WATER,T=T[8],x=Q[8])
@@ -53,7 +53,7 @@ UAs = Qhx / Lmtds
 {Desorber}
 m[3] = m[4] + m[7]                                                              {Overall mass balance}
 m[3] * x[3] = m[4] * x[4]                                                        {LiBr balance}
-h[3] * m[3] - h[4] * m[4] - h[7] * m[7] + Qd = 0                           {Energy balance}
+h[3] * m[3] - h[4] * m[4] - h[7] * m[7] + Qd = 0 [kW]                          {Energy balance}
 Qd = m[11] * (h[11] - h[12])                                               {Energy balance}
 Eff_d = (T[11] - T[12]) / (T[11] - T[7])
 
@@ -71,7 +71,7 @@ Qe = m[17] * (h[17] - h[18])                                             {Energy
 Eff_e = (T[17] - T[18]) / (T[17] - T[10])
 
 {Absorber}
-m[10] * h[10] + h[6] * m[6] - Qa - m[1] * h[1] = 0                       {Energy balance}
+m[10] * h[10] + h[6] * m[6] - Qa - m[1] * h[1] = 0 [kW]                      {Energy balance}
 Qa = m[13] * (h[14] - h[13])                                                {Energy balance}
 Eff_a = (T[14] - T[13]) / (T[6] - T[13])
 
@@ -114,12 +114,12 @@ x[9]=x[8]
 x[10]=x[9]
 
 {Compute thermodynamic properties}
-h[1] = H_LIBR(T[1], X[1], SI)
-h[2] = H_LIBR(T[2], x[2], SI)
-h[3] = H_LIBR(T[3], x[3], SI)                                       
-h[4] = H_LIBR(T[4], x[4], SI)
-h[5] = H_LIBR(T[5], x[5], SI) 
-CALL Q_LIBR(h[6], Plow, x[6], SI : q6b, T6b, Xl6b, hl6b, hv6b)
+h[1] = H_LiBrH2O(T[1], X[1] * convert(%, kg/kg))
+h[2] = H_LiBrH2O(T[2], x[2] * convert(%, kg/kg))
+h[3] = H_LiBrH2O(T[3], x[3] * convert(%, kg/kg))
+h[4] = H_LiBrH2O(T[4], x[4] * convert(%, kg/kg))
+h[5] = H_LiBrH2O(T[5], x[5] * convert(%, kg/kg))
+CALL Q_LiBrH2O(h[6], Plow, x[6] * convert(%, kg/kg): q6b, T6b, Xl6b * convert(%, kg/kg))
 T[6] = T6b
 h[7] = enthalpy(WATER,T=T[7],P=Phigh)
 h7s = enthalpy(WATER,T=T[8],x=1.0)
@@ -135,7 +135,7 @@ h[16] = enthalpy(WATER,T=T[16],x=0)
 h[17] = enthalpy(WATER,T=T[17],x=0.)
 h[18] = enthalpy(WATER,T=T[18],x=0.)
 
-v1 = V_LIBR(T[1], X[1], SI) * convert(cm3/g, m3/kg)
+v1 = 1 / rho_LiBrH2O(T[1], X[1])
 
 {Compute COP}
 COP = m[9] * (h[10] - h[9]) / (m[11] * (h[11] - h[12]))
@@ -155,5 +155,5 @@ P[10] = Plow
 {Set Vapor Quality}
 Q[1] = 0
 Q[4] = 0
-Q[6] = Q6b * convert(%, kg/kg)         {Fraction}
+Q[6] = Q6b
 Q[9] = quality(STEAM_NBS,h=h[9],P=Plow)
