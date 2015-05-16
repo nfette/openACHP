@@ -135,7 +135,7 @@ h[16] = enthalpy(WATER,T=T[16],x=0)
 h[17] = enthalpy(WATER,T=T[17],x=0.)
 h[18] = enthalpy(WATER,T=T[18],x=0.)
 
-v1 = 1 / rho_LiBrH2O(T[1], X[1])
+v1 = 1 / rho_LiBrH2O(T[1], X[1] * convert(%, kg/kg))
 
 {Compute COP}
 COP = m[9] * (h[10] - h[9]) / (m[11] * (h[11] - h[12]))
