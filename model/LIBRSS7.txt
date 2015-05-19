@@ -12,14 +12,16 @@ Simple LiBr absorption cycle
 SI=2
 
 {Input data}
-Eff_Hx=.64
-{UAs=.132}
-m[1]=.05 [kg/s]
+{Eff_Hx=0.64}
+UAs=0.134
+m[1]=0.05 [kg/s]
 
 UAa=1.8 [kW/K]
 UAc=1.2 [kW/K]
 UAg=1 [kW/K]
-UAe=2.25 [kW/K]
+{UAe=2.25 [kW/K]}
+UA_external_total = UAa + UAc + UAg + UAe
+UA_external_total=6.25 [kW/K]
 
 T[13] = 25 [C]
 m[13] = 0.28 [kg/sec]
