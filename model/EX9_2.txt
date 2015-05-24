@@ -1,0 +1,186 @@
+"Absorption Chillers and Heat Pumps
+K.E. Herold, R. Radermacher and S.A. Klein
+CRC Press, 1995
+
+THIS PROGRAM CALCULATES THE PERFORMANCE OF A SINGLE-STAGE
+ABSORPTION SYSTEM WITH CONDENSATE PRECOOLING
+
+Set up for Example 9.2
+This program is also used for Example 9.3, the only difference is the 
+value for the effectiveness of the condensate subcooler"
+
+{Press F2 to solve.}
+
+"The following procedures are used to convert units"
+
+PROCEDURE TPQ(TC,P,Q:x,h,v,s) 
+"given T (temperature), P (pressure) and Q (quality) in SI units,
+ this procedures returns x, h, v and s in SI units"
+TK=TC+273.15
+Pbar=P*.01
+CALL NH3H2O(128,TK,Pbar,Q:TK,Pbar,x,h,s,u,v,Q)
+END
+PROCEDURE TPX(TC,P,x:Q,h,v,s) 
+"given T (temperature), P (pressure) and x (ammonia wt fraction) in SI
+units, this procedure returns Q, h, v and s in SI units"
+TK=TC+273.15
+Pbar=P*.01
+CALL NH3H2O(123,TK,Pbar,x:TK,Pbar,x,h,s,u,v,Q)
+END
+PROCEDURE PXQ(P,x,Q:TC,h,v,s) 
+"given P (pressure in bar), x (ammonia wt fraction) and Q, this procedure
+ returns T, h, v and s in SI units"
+Pbar=P*.01
+CALL NH3H2O(238,Pbar,x,Q:TK,Pbar,x,h,s,u,v,Q)
+TC=TK-273.15
+END
+PROCEDURE PHX(P,h,x:TC,Q,v,s) 
+"given P (pressure in bar), enthalpy (J/g), and x (ammonia wt
+fraction), this procedure returns T, Q, v and s in SI units"
+Pbar=P*.01
+CALL NH3H2O(234,Pbar,x,h:TK,Pbar,x,h,s,u,v,Q)
+TC=TK-273.15
+END
+PROCEDURE TXQ(TC,x,Q:P,h,v,s) 
+"given T (temperature in C), Q (quality) and x (ammonia wt fraction) in SI
+units, this procedure returns P, h, v  and s in SI units"
+TK=TC+273.15
+CALL NH3H2O(138,TK,x,Q:TK,Pbar,x,h,s,u,v,Q)
+P=Pbar*100
+END
+PROCEDURE PXS(P,x,s:TC,h,v,Q) 
+"given P (pressure in bar), x (ammonia wt fraction) and entropy s, this procedure
+ returns T, h, v and Q in SI units"
+Pbar=P*.01
+CALL NH3H2O(235,Pbar,x,s:TK,Pbar,x,h,s,u,v,Q)
+TC=TK-273.15
+END
+
+"This procedure calculates the amount of heat that is exchanged
+in the solution heat exchanger"
+PROCEDURE SHX(eshx,mls,mrs,ha,hb,hc,hd:hcc,hdd,qshx)
+qls=mls*(hd-ha) "amount of heat on 'left side', rich solution"
+qrs=mrs*(hb-hc)  "amount of heat on 'right side', poor solution"
+qmin=MIN(qls,qrs)
+qshx=eshx*qmin  "eshx is the sol. hx. effectiveness"
+ hcc=hb-eshx*qmin/mrs  "calculation of outlet enthalpies"
+ hdd=ha+eshx*qmin/mls
+END
+  
+"INPUT PARAMETERS"
+"efficiencies"
+etap=0.50 "isentropic efficency of pump"
+eshx=1 "solution heat exchanger efectiveness"
+esc=0.0 "effectiveness of condensate precooler, if esc=0, no 
+subcooler is used"
+f=(x[9]-x[4])/(x[3]-x[4]) "solution circulation ratio"
+"temperatures"
+t[13]=-10  " for state point, see diagram window"
+t[10]=40
+t[1]=40
+tglide=T[13]-T[12]
+"mass fractions"
+x[9]=0.99963406
+x[1]-x[4]=Dx
+Dx=0.1
+"mass flow "
+m[1]=1
+"Quality"
+Q[13]=0.998
+Q[10]=0.00
+Q[7]=1
+Q[9]=1
+Q[1]=0
+Q[4]=0
+
+"governing equations"
+"ABSORBER"
+m[14]+m[6]=m[1]
+m[14]*x[14]+m[6]*x[6]=m[1]*x[1]
+m[14]*h[14]+m[6]*h[6]=m[1]*h[1]+Qabs
+"DESORBER"
+balm=m[8]+m[3]-(m[7]+m[4])
+bala=m[8]*x[8]+m[3]*x[3]-(m[7]*x[7]+m[4]*x[4])
+m[3]*h[3]+m[8]*h[8]+Qgen=m[7]*h[7]+m[4]*h[4]
+CALL pxq(P[3],x[3],0:T3f,h3f,v3f,s3f) 
+T[7]=T3f
+"RECTIFIER"
+m[7]=m[9]+m[8]
+m[7]*x[7]=m[9]*x[9]+m[8]*x[8]
+m[7]*h[7]=m[9]*h[9]+m[8]*h[8]+Qrect
+h[8]=h3f
+x[8]=x[3]
+"PUMP"
+swp=v[1]*(p[2]-p[1])/etap
+h[2]=h[1]+swp
+Wp=m[1]*(h[2]-h[1])
+"EXPANSION VALVE"
+h[5]=h[6]
+"SHX"
+CALL tpx(T[2],P[5],x[5]:Q5e,h5e,v5e,s5e) 
+CALL tpx(T[4],P[3],x[3]:Q3e,h3e,v3e,s3e) 
+CALL shx(eshx,m[2],m[4],h[2],h[4],h5e,h3e:h[5],h[3],Qshx)
+"CONDENSER"
+Qcond=m[9]*(h[9]-h[10])
+"EVAPORATOR"
+Qevap=m[13]*(h[13]-h[12])
+"EXPANSION VALVE"
+h[11]=h[12]
+"C-E HX"
+CALL tpx(t[10],P[14],x[14]:Q14e,h14e,v14e,s14e) 
+CALL tpx(t[13],P[11],x[11]:Q11e,h11e,v11e,s11e) 
+CALL shx(esc,m[13],m[10],h[13],h[10],h11e,h14e:h[11],h[14],QCE)
+"OVERALL"
+COP=Qevap/(Wp+Qgen)
+checkQ=Qgen+Qevap+Wp-(Qrect+Qcond+Qabs)
+pratio=phigh/plow
+"SET PRESSURES"
+p[1]=plow
+p[2]=phigh
+P[3]=phigh
+p[4]=phigh
+P[5]=phigh
+P[6]=plow
+p[7]=phigh
+p[8]=phigh
+p[9]=phigh
+p[10]=phigh
+p[11]=phigh
+p[12]=plow
+P[13]=plow
+P[14]=plow
+"TRIVIAL MASS BALANCES"
+m[1]=m[2]
+m[2]=m[3]
+m[4]=m[5]
+m[5]=m[6]
+m[9]=m[10]
+m[10]=m[11]
+m[11]=m[12]
+m[12]=m[13]
+m[13]=m[14]
+"TRIVIAL NH3 BALANCES"
+x[1]=x[2]
+x[2]=x[3]
+x[4]=x[5]
+x[5]=x[6]
+x[9]=x[10]
+x[10]=x[11]
+x[11]=x[12]
+x[12]=x[13]
+x[13]=x[14]
+"STATE POINTS"
+CALL txq(t[1],x[1],Q[1]:p[1],h[1],v[1],s[1]) 
+CALL phx(p[2],h[2],x[2]:T[2],Q[2],v[2],s[2]) 
+CALL phx(P[3],h[3],x[3]:T[3],Q[3],v[3],s[3]) 
+CALL pxq(p[4],x[4],Q[4]:T[4],h[4],v[4],s[4])
+CALL phx(P[5],h[5],x[5]:T[5],Q[5],v[5],s[5]) 
+CALL phx(P[6],h[6],x[6]:T[6],Q[6],v[6],s[6]) 
+CALL tpq(T[7],p[7],Q[7]:x[7],h[7],v[7],s[7]) 
+CALL phx(p[8],h[8],x[8]:T[8],Q[8],v[8],s[8]) 
+CALL pxq(p[9],x[9],Q[9]:T[9],h[9],v[9],s[9])
+CALL txq(t[10],x[10],Q[10]:p[10],h[10],v[10],s[10])  
+CALL phx(p[11],h[11],x[11]:T[11],Q[11],v[11],s[11]) 
+CALL phx(p[12],h[12],x[12]:t[12],q[12],v[12],s[12]) 
+CALL txq(t[13],x[13],q[13]:p[13],h[13],v[13],s[13]) 
+CALL phx(P[14],h[14],x[14]:T[14],Q[14],v[14],s[14]) 
