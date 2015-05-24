@@ -16,44 +16,49 @@ value for the effectiveness of the condensate subcooler"
 PROCEDURE TPQ(TC,P,Q:x,h,v,s) 
 "given T (temperature), P (pressure) and Q (quality) in SI units,
  this procedures returns x, h, v and s in SI units"
-TK=TC+273.15
-Pbar=P*.01
+TK=convertTemp(C,K,TC)
+Pbar = P * convert(kPa, bar)
 CALL NH3H2O(128,TK,Pbar,Q:TK,Pbar,x,h,s,u,v,Q)
 END
+
 PROCEDURE TPX(TC,P,x:Q,h,v,s) 
 "given T (temperature), P (pressure) and x (ammonia wt fraction) in SI
 units, this procedure returns Q, h, v and s in SI units"
-TK=TC+273.15
-Pbar=P*.01
+TK = convertTemp(C,K,TC)
+Pbar = P * convert(kPa, bar)
 CALL NH3H2O(123,TK,Pbar,x:TK,Pbar,x,h,s,u,v,Q)
 END
+
 PROCEDURE PXQ(P,x,Q:TC,h,v,s) 
 "given P (pressure in bar), x (ammonia wt fraction) and Q, this procedure
  returns T, h, v and s in SI units"
-Pbar=P*.01
+Pbar = P * convert(kPa, bar)
 CALL NH3H2O(238,Pbar,x,Q:TK,Pbar,x,h,s,u,v,Q)
-TC=TK-273.15
+TC=convertTemp(K,C,TK)
 END
+
 PROCEDURE PHX(P,h,x:TC,Q,v,s) 
 "given P (pressure in bar), enthalpy (J/g), and x (ammonia wt
 fraction), this procedure returns T, Q, v and s in SI units"
-Pbar=P*.01
+Pbar = P * convert(kPa, bar)
 CALL NH3H2O(234,Pbar,x,h:TK,Pbar,x,h,s,u,v,Q)
-TC=TK-273.15
+TC=convertTemp(K,C,TK)
 END
+
 PROCEDURE TXQ(TC,x,Q:P,h,v,s) 
 "given T (temperature in C), Q (quality) and x (ammonia wt fraction) in SI
 units, this procedure returns P, h, v  and s in SI units"
-TK=TC+273.15
+TK=convertTemp(C,K,TC)
 CALL NH3H2O(138,TK,x,Q:TK,Pbar,x,h,s,u,v,Q)
-P=Pbar*100
+P = Pbar * convert(bar, kPa)
 END
+
 PROCEDURE PXS(P,x,s:TC,h,v,Q) 
 "given P (pressure in bar), x (ammonia wt fraction) and entropy s, this procedure
  returns T, h, v and Q in SI units"
-Pbar=P*.01
+Pbar = P * convert(kPa, bar)
 CALL NH3H2O(235,Pbar,x,s:TK,Pbar,x,h,s,u,v,Q)
-TC=TK-273.15
+TC=convertTemp(K,C,TK)
 END
 
 "This procedure calculates the amount of heat that is exchanged
