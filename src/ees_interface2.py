@@ -56,7 +56,7 @@ def List2EesParamRec(listin):
 EesStringData = ctypes.c_char * 256
 #EesStringData = ctypes.c_char_p # does not work
 
-class wrappedFunction:
+class wrappedProcedure:
     def __init__(self,func):
         self.func = func
         self.func.argtypes=[EesStringData, ctypes.POINTER(ctypes.c_int),
@@ -89,40 +89,75 @@ class wrappedFunction:
     def call(self,S,inarglist):
         return self.wrapper(S,mode.call,inarglist)
     
+class wrappedFunction:
+    def __init__(self,func):
+        self.func = func
+        self.func.argtypes=[EesStringData, ctypes.POINTER(ctypes.c_int),
+                       ctypes.POINTER(EesParamRec)]
+
+    def wrapper(self, s, intmode, inarglist):
+        strdata = EesStringData(" ")
+        strdata.raw = "{:256}".format(s)
+        intmode = ctypes.c_int(intmode)
+        print(intmode)
+        inargs = List2EesParamRec(inarglist)
+        outargs = List2EesParamRec(range(5))
+        outargs = self.func(strdata, ctypes.byref(intmode),
+            ctypes.byref(inargs))
+        print(intmode)
+        print(strdata.value)
+        return strdata.value, outargs
+        
+    def getCallFormat(self,S="",inarglist=[0]):
+        callFormat,_ = self.wrapper(S,mode.getCallFormat,inarglist)
+        invars = callFormat.split('(')[1].split(')')[0]
+        invars = map(str.strip,invars.split(','))
+        return callFormat, invars
+    def getInputUnits(self,S="",inarglist=[0]):
+        return self.wrapper(S,mode.getInputUnits,inarglist)[0].split(',')
+    def getOutputUnits(self,S="",inarglist=[0]):
+        return self.wrapper(S,mode.getOutputUnits,inarglist)[0].split(',')
+    def call(self,S,inarglist):
+        return self.wrapper(S,mode.call,inarglist)
 
 class EES_DLL:
     def __init__(self, path):
         self.path = path
         self.mydll = ctypes.WinDLL(self.path)
-        #myDLL=ctypes.cdll.LoadLibrary(self.path)
+        #self.mydll = ctypes.cdll.LoadLibrary(self.path)
         self.name = os.path.splitext(os.path.basename(path))[0].upper()
         print(self.name)
         # The function names are returned by some interface functions.
-        funcnames = self.getDLPnames();
+        funcnames = self.getDLPnames()+self.getDLFnames()+self.getFDLnames()
+        print(funcnames)
         # Wrap them.
-        self.func = {name:wrappedFunction(self.mydll[name]) for name in funcnames}
+        self.func = {name:wrappedFunction(self.mydll[name]) for name in self.getDLFnames()}
+        self.proc = {name:wrappedProcedure(self.mydll[name]) for name in self.getDLPnames()}
     def getDLFnames(self):
         strdata = EesStringData(" ")
         strdata.raw = "{:256}".format("")
         self.mydll['DLFNames'](strdata)
-        return strdata.value.split(',')
+        newnames = strdata.value.strip().split(',')
+        return [n for n in newnames if len(n) > 0]
     def getDLPnames(self):
         strdata = EesStringData(" ")
         strdata.raw = "{:256}".format("")
         self.mydll['DLPNames'](strdata)
-        return strdata.value.split(',')
+        newnames = strdata.value.strip().split(',')
+        return [n for n in newnames if len(n) > 0]
     def getFDLnames(self):
         strdata = EesStringData(" ")
         strdata.raw = "{:256}".format("")
         self.mydll['FDLNames'](strdata)
-        return strdata.value.split(',')
+        newnames = strdata.value.strip().split(',')
+        return [n for n in newnames if len(n) > 0]
         
         
 if __name__ == "__main__":
     # LiBr?
     LiBr_path = r'C:\EES32\Userlib\Libr\LIBR.dll'
     myDLL = EES_DLL(LiBr_path)
-    qlibr = myDLL.func['Q_LIBR']
+    qlibr = myDLL.proc['Q_LIBR']
     
     callFormat, invars, outvars = qlibr.getCallFormat()
     print(callFormat)
@@ -140,5 +175,26 @@ if __name__ == "__main__":
 
     inarglist = [154.5, 0.673, 62.5, 2]
     s0,outarglist = qlibr.call("", inarglist)
-    print(outarglist)
+    print("Output values: {}".format(outarglist))
     #for p in zip(outvars, outarglist, outunits): print(p)
+
+    tlibr = myDLL.func['T_LIBR']
+    
+    callFormat, invars = tlibr.getCallFormat()
+    print(callFormat)
+    print("Invars: {}".format(invars))
+    
+    inarglist = [100, 0.5]
+    print("In values: {}".format(inarglist))
+    
+    inunits = tlibr.getInputUnits(inarglist=inarglist)
+    #for p in zip(invars, inarglist, inunits): print(p)
+    print("Inputs units: {}".format(inunits))
+    
+    outunits = tlibr.getOutputUnits()
+    print("Output units: {}".format(outunits))
+
+    inarglist = [100, 0.5]
+    s0,outarglist = tlibr.call("", inarglist)
+    print("Output values: {}".format(outarglist))
+    
