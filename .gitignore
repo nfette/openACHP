@@ -44,3 +44,10 @@ Temporary Items
 
 # Python binaries
 *.pyc
+src/cython/build/temp.win32-2.7/Release/helloworld.o
+src/cython/build/temp.win32-2.7/Release/helloworld.lib
+src/cython/build/lib.win32-2.7/helloworld.pyd
+src/cython/build/temp.win32-2.7/Release/helloworld.def
+src/cython/build/lib.win32-2.7/helloworld.dll
+src/cython/helloworld.c
+src/cython/helloworld.h

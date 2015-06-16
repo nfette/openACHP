@@ -10,6 +10,7 @@ functions for water, and compare to a known set of code using these relations.
 """
 
 from CoolProp.CoolProp import PropsSI
+from CoolProp import AbstractState, constants
 from hw2_1 import CelsiusToKelvin as C2K, KelvinToCelsius as K2C
 from scipy.optimize import minimize
 import numpy as np
@@ -62,7 +63,7 @@ def pressure(T,x):
     Q = 0.0
     #print("Ts, Q = {}, {}".format(Ts, Q))
     pressurePa = PropsSI('P','T',Ts,'Q',Q,'water') # Pa
-    #print("pressurePa = {}".format(pressurePa)) # ()
+    print("pressurePa = {}".format(pressurePa)) # ()
     pressureBar = pressurePa * 1e-5
     return pressureBar
     
@@ -134,9 +135,16 @@ Based on table 7 and equation (4) in reference.
     n=[0,1,6,6,2,0,0,4,0,4,5,5,6,0,3,5,7,0,3,1,0,4,2,6,7,0,0,1,2,3]
     t=[0,0,0,0,0,1,1,1,2,2,2,2,2,3,3,3,3,3,3,3,4,4,4,4,4,4,5,5,5,5]
     T_crit = PropsSI('water','Tcrit') # [K]
-    P_crit = PropsSI('water','pcrit')
-    h_crit = PropsSI('H','T',T_crit,'P',P_crit,'water') # J/kg
-    h_c = h_crit * MW_H2O
+    P_crit = PropsSI('water','pcrit') # [Pa]
+    # This one had a problem starting around CoolProp version 5.0.8
+    #h_crit = PropsSI('H','T',T_crit,'P',P_crit,'water') # J/kg
+    # Instead, use the low-level interface
+    state = AbstractState('HEOS','Water')
+    state.specify_phase(constants.iphase_critical_point)
+    state.update(constants.PT_INPUTS, P_crit, T_crit)
+    #h_crit = state.hmass()
+    #h_c = h_crit * MW_H2O
+    h_c = state.hmolar() # [kJ/kmol]
     T_c = T_crit # [K]
     T_0 = 221. # [K] "is a nonlinear parameter of the equations"
 
@@ -178,8 +186,12 @@ Based on table 8 and equation (5) in reference.
     #s_c = 79.3933 # [J/gmol-K]
     T_crit = PropsSI('water','Tcrit') # [K]
     P_crit = PropsSI('water','pcrit') # [Pa]
-    s_crit = PropsSI('S','T',T_crit,'P',P_crit,'water') # J/kg-K
-    s_crit_molar = s_crit * MW_H2O
+    state = AbstractState('HEOS','Water')
+    state.specify_phase(constants.iphase_critical_point)
+    state.update(constants.PT_INPUTS, P_crit, T_crit)
+    #s_crit = state.smass() # J/kg-K
+    #s_crit_molar = s_crit * MW_H2O
+    s_crit_molar = state.smolar()
     s_c = s_crit_molar
     #print("By the way, pure water @ critical point has entropy {} J/kg-K"
     #    .format(s_crit))
@@ -394,7 +406,10 @@ if __name__ == "__main__":
     P_crit = PropsSI('water','pcrit')
     print("By the way, pure water @ critical point is has {} K, {} Pa"
         .format(T_crit, P_crit))
-    h_crit = PropsSI('H','T',T_crit,'P',P_crit,'water')
+    state = AbstractState('HEOS','Water')
+    state.specify_phase(constants.iphase_critical_point)
+    state.update(constants.PT_INPUTS, P_crit, T_crit)
+    h_crit = state.hmass()
     print("By the way, pure water @ critical point has enthalpy {} J/kg"
         .format(h_crit))
     
