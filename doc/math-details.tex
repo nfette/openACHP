@@ -1,0 +1,115 @@
+% !TEX TS-program = pdflatex
+% !TEX encoding = UTF-8 Unicode
+
+% This is a simple template for a LaTeX document using the "article" class.
+% See "book", "report", "letter" for other types of document.
+
+\documentclass[11pt]{article} % use larger type; default would be 10pt
+
+\usepackage[utf8]{inputenc} % set input encoding (not needed with XeLaTeX)
+
+%%% Examples of Article customizations
+% These packages are optional, depending whether you want the features they provide.
+% See the LaTeX Companion or other references for full information.
+
+%%% PAGE DIMENSIONS
+\usepackage{geometry} % to change the page dimensions
+\geometry{a4paper} % or letterpaper (US) or a5paper or....
+% \geometry{margin=2in} % for example, change the margins to 2 inches all round
+% \geometry{landscape} % set up the page for landscape
+%   read geometry.pdf for detailed page layout information
+
+\usepackage{graphicx} % support the \includegraphics command and options
+
+% \usepackage[parfill]{parskip} % Activate to begin paragraphs with an empty line rather than an indent
+
+%%% PACKAGES
+%\usepackage{booktabs} % for much better looking tables
+\usepackage{array} % for better arrays (eg matrices) in maths
+%\usepackage{paralist} % very flexible & customisable lists (eg. enumerate/itemize, etc.)
+\usepackage{verbatim} % adds environment for commenting out blocks of text & for better verbatim
+%\usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+% These packages are all incorporated in the memoir class to one degree or another...
+
+%%% HEADERS & FOOTERS
+\usepackage{fancyhdr} % This should be set AFTER setting up the page geometry
+\pagestyle{fancy} % options: empty , plain , fancy
+\renewcommand{\headrulewidth}{0pt} % customise the layout...
+\lhead{}\chead{}\rhead{}
+\lfoot{}\cfoot{\thepage}\rfoot{}
+
+%%% SECTION TITLE APPEARANCE
+%\usepackage{sectsty}
+%\allsectionsfont{\sffamily\mdseries\upshape} % (See the fntguide.pdf for font help)
+% (This matches ConTeXt defaults)
+
+%%% ToC (table of contents) APPEARANCE
+%\usepackage[nottoc,notlof,notlot]{tocbibind} % Put the bibliography in the ToC
+%\usepackage[titles,subfigure]{tocloft} % Alter the style of the Table of Contents
+%\renewcommand{\cftsecfont}{\rmfamily\mdseries\upshape}
+%\renewcommand{\cftsecpagefont}{\rmfamily\mdseries\upshape} % No bold!
+
+%%% END Article customizations
+
+%%% The "real" document content comes below...
+
+\title{Regarding LiBr-water mixture properties.}
+\author{The Author}
+%\date{} % Activate to display a given date or no date (if empty),
+         % otherwise the current date is printed 
+
+\begin{document}
+\maketitle
+
+\section{Functions of vapor pressure}
+
+Equilibrium vapor pressure above a mixture as a function of solution temperature and mass fraction is given by equation 1 and constants in table 4.
+
+\subsection{Solving Temperature}
+To get temperature as a function of pressure and mass fraction, it would be useful to have the derivative available, and this is possible as follows. However, note that you can get \(\theta\) from \(p\) and then solve \(T\). Anyway,
+
+\[
+p(T,x) = p_{\sigma}(\theta), \quad
+\theta = T - \sum_{i=1}^{8} a_i x^{m_i} (0.4 - x) ^ {n_i} \left(\frac{T}{T_c}\right)^{t_i}
+\]
+
+\[
+\frac{\partial p}{\partial T} = 
+\frac{\partial p_{\sigma}}{\partial \theta}
+\frac{\partial \theta}{\partial T} 
+\]
+
+Now the pressure derivative should be obtained from CoolProp, whereas the adjusted temperature derivative is in closed form:
+
+\[
+\frac{\partial \theta}{\partial T}
+=
+1 - \sum_{i=1, t_i > 0}^{8} a_i x^{m_i} (0.4 - x) ^ {n_i} t_i \left(\frac{T}{T_c}\right)^{t_i - 1} T_c^{-1}
+\]
+
+\subsection{Solving mass fraction}
+
+Similarly, we need the derivative wrt mass fraction:
+
+\[
+\frac{\partial p}{\partial x} = 
+\frac{\partial p_{\sigma}}{\partial \theta}
+\frac{\partial \theta}{\partial x} 
+\]
+
+where
+
+\[
+\frac{\partial \theta}{\partial x}
+=
+-\sum_{i=1, m_i > 0}^{8} a_i m_i x^{m_i-1} (0.4 - x) ^ {n_i} \left(\frac{T}{T_c}\right)^{t_i}
+-\sum_{i=1, n_i > 0}^{8} a_i x^{m_i} n_i (0.4 - x) ^ {n_i - 1} (-1) \left(\frac{T}{T_c}\right)^{t_i}
+\]
+
+
+
+
+Mass fraction (in the liquid) as a function of vapor pressure and temperature is given by equation 1 and constants in table 4. To get pressure as a function of temperature and mass fraction, it would be useful to have the derivative available, and this is possible as follows.
+
+
+\end{document}
