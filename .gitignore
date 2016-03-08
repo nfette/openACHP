@@ -51,3 +51,8 @@ src/cython/build/temp.win32-2.7/Release/helloworld.def
 src/cython/build/lib.win32-2.7/helloworld.dll
 src/cython/helloworld.c
 src/cython/helloworld.h
+*.aux
+doc/math-details.log
+*.gz
+doc/math-details.tex~
+doc/math-details2.log

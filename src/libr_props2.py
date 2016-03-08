@@ -28,9 +28,12 @@ def Tsat2(x,H,T_guess=25):
     f = fsolve(H_err, C2K(T_guess))
     return f[0]
 
+xglobal=0
 def Xsat(T,P,x_guess = 0.4):
-    P_err = lambda(x): CP.PropsSI('P','T',C2K(T),'Q',0,librname(x)) - P
-    f = fsolve(P_err, x_guess)
+    def P_err (x):
+        return CP.PropsSI('P','T',C2K(T),'Q',0,librname(x)) - P
+    P_err_vec = np.vectorize(P_err)
+    f = fsolve(P_err_vec, x_guess)
     return f[0]
 
 def Hsat(x,T):

@@ -19,6 +19,13 @@ water = 'HEOS::Water'
 librname = lambda(x): 'INCOMP::LiBr[{}]'.format(x)
 amm = lambda(x): 'REFPROP::water[{}]&ammonia[{}]'.format(1-x,x)
 
+# Units in this file:
+# temperature [C]
+# enthalpy [J/kg]
+# pressure [Pa]
+# mass fraction [kg/kg total]
+# effectiveness [K/K]
+
 # The LiBr enthalpy is zero at 293.15 K, 1 atm, per
 # http://www.coolprop.org/fluid_properties/Incompressibles.html#general-introduction
 # We need to evaluate water enthalpy relative to that, but it is not built-in.
@@ -57,7 +64,7 @@ m_concentrate = m_pump * x1 / x2
 m_refrig = m_pump - m_concentrate
 
 # Sepcify SHX effectiveness, temperature-wise
-Eff_SHX = 0.4
+Eff_SHX = 0.64
 # Compute SHX outlets, assuming concentrate limits heat flow (C_min)
 # Neglect pump work for the present.
 DeltaT_max = T_gen_outlet - T_abs_outlet_max
@@ -66,6 +73,7 @@ T_SHX_concentrate_outlet = T_gen_outlet - DeltaT_SHX_concentrate
 h_SHX_concentrate_outlet \
     = CP.PropsSI('H','T',C2K(T_SHX_concentrate_outlet),'P',P_cond,librname(x2))
 Q_SHX = m_concentrate * (h_gen_outlet - h_SHX_concentrate_outlet)
+
 # Expansion valve
 h_abs_pre = h_SHX_concentrate_outlet
 if h_abs_pre > h_abs_inlet:
@@ -98,8 +106,8 @@ T_gen_pre = K2C(CP.PropsSI('T','P',P_cond,'H',h_gen_pre,librname(x1)))
 Q_gen_pre_heat = m_pump * (h_gen_inlet - h_gen_pre)
 
 # Heat input to generator: energy balance
-# TODO: this is not saturated maybe?
-h_gen_vapor_outlet = CP.PropsSI('H','P',P_cond,'Q',1,water) - h_w_ref
+h_gen_vapor_outlet = CP.PropsSI('H','P',P_cond,'T',C2K(T_gen_inlet),water) - h_w_ref
+vapor_superheat = T_gen_inlet - T_cond
 Q_gen_main = m_refrig * h_gen_vapor_outlet + m_concentrate * h_gen_outlet \
     - m_pump * h_gen_inlet
 Q_gen_total = Q_gen_main + Q_gen_pre_heat
