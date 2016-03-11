@@ -2,6 +2,15 @@
 """
 Created on Fri Mar 04 10:39:51 2016
 
+The purpose of this file is to obtain the saturation properties of aqueous LiBr
+from Patel and Klomfar, Int J Refrig, Vol 20, pp 566-578 (2006) directly from
+CoolProp.
+
+Note: for enthalpy, a correction is applied.
+
+When inputs are not T,x or P,x, an inverse functions is required, so a
+numerical solver is used.
+
 @author: nfette
 """
 import CoolProp.CoolProp as CP
@@ -36,7 +45,20 @@ def Xsat(T,P,x_guess = 0.4):
     f = fsolve(P_err_vec, x_guess)
     return f[0]
 
+Hcorrector = []
+
 def Hsat(x,T):
+    """Applies correction based on concentration, then returns saturation
+    enthalpy from CoolProp's LiBr-H2O solution. You should check if the
+    state is crystalline; if so, the results are not accurate.
+    
+    Args
+    ----
+        x (float)
+            Concentration of LiBr in liquid, from 0 to 0.75 [kg/kg].
+        T (float)
+            Equilibrium temperature, from 0 to 227 [C].
+    """
     return CP.PropsSI('H','T',C2K(T),'Q',0,librname(x))
 
 def TwoPhase(H, P, x):
@@ -59,4 +81,21 @@ def TwoPhase(H, P, x):
             Vapor quality, mass basis
         Z : float
             Solute concentration in liquid phase"""
-    
+    pass
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    P = 101325
+    Tees = np.arange(0,30,10)
+    exes = np.linspace(0,0.75)
+    for T in Tees:
+        h = np.nan * exes
+        try:
+            for i in range(len(exes)):
+                x = exes[i]
+                h[i] = CP.PropsSI('H','T',C2K(T),'P',P,librname(x))
+        except:
+            pass
+        plt.plot(exes,h,label="{}".format(T))
+        
+        

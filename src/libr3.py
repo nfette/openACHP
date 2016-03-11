@@ -18,6 +18,10 @@ from collections import namedtuple
 water = 'HEOS::Water'
 librname = lambda(x): 'INCOMP::LiBr[{}]'.format(x)
 amm = lambda(x): 'REFPROP::water[{}]&ammonia[{}]'.format(1-x,x)
+
+ProcessPoint = namedtuple("ProcessPoint","fluid m x T P Q H D C")
+def nullPP(fluid):
+    return ProcessPoint(fluid,1,2,3,None,None,None,None,None)
     
 # Units in this file:
 # temperature [C]
@@ -64,7 +68,25 @@ class ChillerLiBr1:
         
         self.P_evap = CP.PropsSI('P','T',C2K(T_evap),'Q',1,water)
         self.P_cond = CP.PropsSI('P','T',C2K(T_cond),'Q',1,water)
-                
+        
+        self.stateLabels = """abs outlet
+pump outlet
+gen inlet
+gen sat. liquid
+gen outlet
+SHX conc. outlet
+abs inlet
+abs sat. liquid
+gen vapor outlet
+cond sat. vapor
+cond outlet
+evap inlet
+evap sat. liquid
+evap sat. vapor
+evap outlet""".split('\n')
+        self.states=dict((k, nullPP('LiBrH2O')) for k in self.stateLabels)
+        
+        
         self.T_gen_inlet = 0
         self.T_gen_outlet = 0
         self.T_abs_inlet_max = 0

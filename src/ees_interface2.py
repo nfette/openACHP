@@ -66,14 +66,15 @@ class wrappedProcedure:
         strdata = EesStringData(" ")
         strdata.raw = "{:256}".format(s)
         intmode = ctypes.c_int(intmode)
-        print(intmode)
+        #print(intmode)
         inargs = List2EesParamRec(inarglist)
         outargs = List2EesParamRec(range(5))
         self.func(strdata, ctypes.byref(intmode),
             ctypes.byref(inargs), ctypes.byref(outargs))
-        print(intmode)
+        #print(intmode)
+        #print(outargs)
         outarglist = EesParamRec2List(outargs)
-        print(strdata.value)
+        #print(strdata.value)
         return strdata.value, outarglist
         
     def getCallFormat(self,S="",inarglist=[0]):
@@ -94,18 +95,19 @@ class wrappedFunction:
         self.func = func
         self.func.argtypes=[EesStringData, ctypes.POINTER(ctypes.c_int),
                        ctypes.POINTER(EesParamRec)]
+        self.func.restype=ctypes.c_double
 
     def wrapper(self, s, intmode, inarglist):
         strdata = EesStringData(" ")
         strdata.raw = "{:256}".format(s)
         intmode = ctypes.c_int(intmode)
-        print(intmode)
+        #print(intmode)
         inargs = List2EesParamRec(inarglist)
-        outargs = List2EesParamRec(range(5))
         outargs = self.func(strdata, ctypes.byref(intmode),
             ctypes.byref(inargs))
-        print(intmode)
-        print(strdata.value)
+        #print(intmode)
+        #print(type(outargs))
+        #print(strdata.value)
         return strdata.value, outargs
         
     def getCallFormat(self,S="",inarglist=[0]):
@@ -184,7 +186,7 @@ if __name__ == "__main__":
     print(callFormat)
     print("Invars: {}".format(invars))
     
-    inarglist = [100, 0.5]
+    inarglist = [100, 50, 2]
     print("In values: {}".format(inarglist))
     
     inunits = tlibr.getInputUnits(inarglist=inarglist)
@@ -194,7 +196,7 @@ if __name__ == "__main__":
     outunits = tlibr.getOutputUnits()
     print("Output units: {}".format(outunits))
 
-    inarglist = [100, 0.5]
+    inarglist = [110, 50, 2]
     s0,outarglist = tlibr.call("", inarglist)
     print("Output values: {}".format(outarglist))
     
