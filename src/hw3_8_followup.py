@@ -25,13 +25,13 @@ if __name__ == "__main__":
     f1 = myprops.props('TPx')
     
     print("Hot side of SHX:")
-    state1 = f1.call(T1, P, x1)
+    state1 = f1(T1, P, x1)
     print(state1)
     dhdT1 = f1.massSpecificHeat(T=T1,P=P,x=x1)
     print("dh/dT = {} kJ/kg-K".format(dhdT1))
     
     print("Cold side of SHX:")
-    state2 = f1.call(T2, P, x2)
+    state2 = f1(T2, P, x2)
     print(state2)
     dhdT2 = f1.massSpecificHeat(T=T2,P=P,x=x2)
     print("dh/dT = {} kJ/kg-K".format(dhdT2))

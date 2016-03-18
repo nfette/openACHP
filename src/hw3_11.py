@@ -8,13 +8,14 @@ Created on Thu Mar 05 19:14:08 2015
 import ammonia_props
 import libr_props
 from hw2_1 import CelsiusToKelvin as C2K
+import CoolProp.CoolProp as CP
 
 def residualsAmmonia(T,P,x,deltaT=1e-4,deltaP=1e-4):
     myprops = ammonia_props.AmmoniaProps()
     f1 = myprops.props(123)
-    state1 = f1.call(T,P,x)
-    state2 = f1.call(T,P+deltaP,x)
-    state3 = f1.call(T+deltaT,P,x)
+    state1 = f1(T,P,x)
+    state2 = f1(T,P+deltaP,x)
+    state3 = f1(T+deltaT,P,x)
     dhdp_T = (state2.h - state1.h) / deltaP
     dvdT_p = (state3.v - state1.v) / deltaT
     a = dhdp_T - (state1.v - T * dvdT_p)
@@ -41,16 +42,16 @@ def residualsLiBr(T,P,x,deltaT=1e-4,deltaP=1e-4):
         # Now let's figure out the other thing
         Qu = 1. - x / x_liquid
         Q_vapor = 1
-        h_vap = PropsSI('H','T',T,'Q',Q_vapor,'Water')
-        v_vap = PropsSI('D','T',T,'Q',Q_vapor,'Water')
-        cp_vap = PropsSI('Cp','T',T,'Q',Q_vapor,'Water')
+        h_vap = CP.PropsSI('H','T',T,'Q',Q_vapor,'Water')
+        v_vap = CP.PropsSI('D','T',T,'Q',Q_vapor,'Water')
+        cp_vap = CP.PropsSI('C','T',T,'Q',Q_vapor,'Water')
         h = (1.0 - Qu) * h_liquid + Qu * h_vap
         v = (1.0 - Qu) * v_liquid + Qu * v_vap
-        hh.append(h)
-        vv.append(v)
-    dhdp_T = (h[1] - h[0]) / deltaP
-    dvdT_p = (v[2] - v[0]) / deltaT
-    a = dhdp_T - (v[0] - T * dvdT_p)    
+        hh[i] = h
+        vv[i] = v
+    dhdp_T = (hh[1] - hh[0]) / deltaP
+    dvdT_p = (vv[2] - vv[0]) / deltaT
+    a = dhdp_T - (vv[0] - T * dvdT_p)    
     dhdT_p = (state3.h - state1.h) / deltaT
     b = dhdT_p - cp
     print(state1)

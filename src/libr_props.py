@@ -7,12 +7,28 @@ Patel and Klomfar, Int J Refrig, Vol 20, pp 566-578 (2006) with the CoolProp
 functions for water, and compare to a known set of code using these relations.
 
 Units used:
-P [bar]
-T [K]
-h [J/kg]
-s [J/kg-K]
-rho [kg/m3]
-MW [kg/mol]
+    P : float
+        pressure, [bar]
+    T : float
+        temperature, [K]
+    h : float
+        enthalpy, [J/kg]
+    s : float
+        entropy, [J/kg-K]
+    rho : float
+        density, [kg/m3]
+    MW : float
+        molecular weight, [kg/mol]
+
+Crystallization curve
+---------------------
+    libr_props.crystallization_data_T :
+        temperature, degrees C
+    libr_props.crystallization_data_x :
+        mass fraction, kg/kg
+
+Source: Boryta, D.A., 1970, "Solubility of Lithium Bromide in Water between
+-50 and +100 C (40 to 70% LiBr)", J Chem Eng Data, Vol 15, No 1, pp 142-144.
 
 @author: nfette
 """
@@ -379,6 +395,20 @@ rho_crit_molar = {} mol/m3""".format(T_crit,rho_crit_molar))
     MW = x_N * MW_LiBr + (1 - x_N) * MW_H2O
     result = d_molar * MW # kg/m^3
     return result
+    
+crystallization_data_T = np.array(
+      [ -53.6 ,  -49.32,  -42.12,  -36.32,  -32.96,  -29.17,  -25.24,
+        -16.11,  -13.47,   -8.94,   -4.54,    1.11,    5.1 ,    9.93,
+         18.99,   24.29,   33.14,   38.26,   44.27,   50.35,   57.58,
+         63.42,   70.9 ,   71.69,   82.68,   83.11,   91.36,   91.82,
+        101.05,  102.02])
+crystallization_data_x = np.array(
+      [ 0.452 ,  0.4803,  0.4963,  0.5009,  0.505 ,  0.512 ,  0.517 ,
+        0.5195,  0.537 ,  0.5475,  0.5592,  0.5681,  0.5722,  0.5808,
+        0.5867,  0.6063,  0.625 ,  0.6396,  0.6517,  0.6582,  0.6616,
+        0.6655,  0.6737,  0.6739,  0.6832,  0.6827,  0.6899,  0.6905,
+        0.7004,  0.7008])
+
 
 if __name__ == "__main__":
     # Unit testing

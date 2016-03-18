@@ -14,7 +14,7 @@ if __name__ == "__main__":
     f1 = myprops.props('TPx')
     T, P, x = C2K(20.), 10., 0.5 # K, bar, dim
     
-    state = f1.call(T, P, x)
+    state = f1(T, P, x)
     print(state)
     dhdT = f1.massSpecificHeat(T=T,P=P,x=x)
     dhdT_expected = 4.604999985

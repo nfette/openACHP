@@ -14,7 +14,7 @@ if __name__ == "__main__":
     myprops = ammonia_props.AmmoniaProps()
     f1 = myprops.props('TPx')
     T, P, x = C2K(50.), 10., 0.0 # K, bar, dim    
-    state = f1.call(T, P, x)    
+    state = f1(T, P, x)    
     print(state)
     print(f1.getOutputUnits())
     
@@ -30,8 +30,8 @@ if __name__ == "__main__":
     
     print("(d) Enthalpy of mixing")
     x = state.x
-    h_ideal1 = f1.call(T,P,1.0).h
-    h_ideal2 = f1.call(T,P,0.0).h
+    h_ideal1 = f1(T,P,1.0).h
+    h_ideal2 = f1(T,P,0.0).h
     h_ideal = x * h_ideal1 + (1 - x) * h_ideal2
     h_mix = state.h - h_ideal
     print("h_ideal = {} kJ/kg, h_mix = {} kJ/kg".format(h_ideal, h_mix))

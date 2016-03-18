@@ -14,7 +14,7 @@ if __name__ == "__main__":
     f1 = myprops.props('TPx')
     T, P, x = C2K(20.), 10., 0.5 # K, bar, dim
     
-    state = f1.call(T, P, x)
+    state = f1(T, P, x)
     print state
     print "g = {}".format(state.gibbs())
     print f1.dgdxetc(T=T,P=P,x=x)
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     
     for (Qu,label) in [(0,'sat liquid'),(1,'sat vapor'),(0.999,'almost sat vapor')]:
         print label
-        state = f2.call(T, P, Qu)
+        state = f2(T, P, Qu)
         print state
         print "g = {}".format(state.gibbs())
         x = state.x

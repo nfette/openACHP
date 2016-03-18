@@ -125,17 +125,33 @@ class wrappedFunction:
 class EES_DLL:
     def __init__(self, path):
         self.path = path
-        self.mydll = ctypes.WinDLL(self.path)
-        #self.mydll = ctypes.cdll.LoadLibrary(self.path)
         self.name = os.path.splitext(os.path.basename(path))[0].upper()
-        print(self.name)
-        # The function names are returned by some interface functions.
-        funcnames = self.getDLPnames()+self.getDLFnames()+self.getFDLnames()
-        print(funcnames)
-        # Wrap them.
+        #print(self.name)
+        
+        try:
+            # This works for older libraries like LiBr.DLL        
+            self.mydll = ctypes.WinDLL(self.path)
+            self.setupNames()
+        except:
+            # This works for newer libraries like SSCLiBr.DLL
+            self.mydll = ctypes.cdll.LoadLibrary(self.path)
+            #self.mydll = ctypes.CDLL(self.path)
+            self.setupNames()
+        
+        # Wrap the functions.
         self.func = {name:wrappedFunction(self.mydll[name]) for name in self.getDLFnames()}
         self.proc = {name:wrappedProcedure(self.mydll[name]) for name in self.getDLPnames()}
+        
+    def setupNames(self):
+        # The function names are returned by some interface functions.
+        for i in ['DLFNames','DLPNames','FDLNames']:
+            self.mydll['DLFNames'].argtypes = [ctypes.c_char_p]
+            self.mydll['DLFNames'].restype = None
+        funcnames = self.getDLPnames()+self.getDLFnames()+self.getFDLnames()
+        #print(funcnames)
+        
     def getDLFnames(self):
+        
         strdata = EesStringData(" ")
         strdata.raw = "{:256}".format("")
         self.mydll['DLFNames'](strdata)
@@ -199,4 +215,16 @@ if __name__ == "__main__":
     inarglist = [110, 50, 2]
     s0,outarglist = tlibr.call("", inarglist)
     print("Output values: {}".format(outarglist))
+    
+    LiBrSSC_path = r'C:\EES32\Userlib\Libr\SSCLiBr.dll'
+    SSC_DLL = EES_DLL(LiBrSSC_path)
+    ssclibrh = SSC_DLL.func['LiBrSSCh']
+    inarglist=[20,0.5]
+    inunits = ssclibrh.getInputUnits(inarglist=inarglist)
+    print("Inputs units: {}".format(inunits))
+    outunits = ssclibrh.getOutputUnits()
+    print("Output units: {}".format(outunits))
+    s0,outarglist = ssclibrh.call("",inarglist)
+    print(s0)
+    print(outarglist)
     
