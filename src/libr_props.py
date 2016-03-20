@@ -344,8 +344,8 @@ def twoPhaseProps(h,P,z):
             # qq = (x - z) / x
         else:
             Q = 0.
-        print("{},h={},P={},z={},Q={},x={},T={},hL={},hv={}"
-            .format(iter,h,P,z,Q,x,T,hL,hv))
+        #print("{},h={},P={},z={},Q={},x={},T={},hL={},hv={}"
+        #    .format(iter,h,P,z,Q,x,T,hL,hv))
         if (abs(Q - Qlast) < 0.00001) and (iter > 5):
             break
     return Q, T, x

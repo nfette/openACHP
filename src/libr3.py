@@ -10,14 +10,13 @@ A single effect LiBr absorption chiller model.
 import CoolProp.CoolProp as CP
 from hw2_1 import CelsiusToKelvin as C2K
 from hw2_1 import KelvinToCelsius as K2C
-import libr_props2
+import libr_props, libr_props2
 import tabulate
 import numpy as np
 from collections import namedtuple
 
 water = 'HEOS::Water'
 librname = lambda(x): 'INCOMP::LiBr[{}]'.format(x)
-amm = lambda(x): 'REFPROP::water[{}]&ammonia[{}]'.format(1-x,x)
 
 ProcessPoint = namedtuple("ProcessPoint","fluid m x T P Q H D C")
 def nullPP(fluid):
@@ -120,18 +119,23 @@ evap outlet""".split('\n')
         
     def iterate1(self):
         """Update the internal parameters."""
-        self.T_gen_inlet = libr_props2.Tsat(self.x1, self.P_cond, 80)
-        self.T_gen_outlet = libr_props2.Tsat(self.x2, self.P_cond,
-                                             self.T_gen_inlet)
-        self.T_abs_inlet_max = libr_props2.Tsat(self.x2, self.P_evap,
-                                                self.T_gen_outlet)
-        self.T_abs_outlet_max = libr_props2.Tsat(self.x1, self.P_evap,
-                                                 self.T_abs_inlet_max)
+        self.T_gen_inlet = K2C(libr_props.temperature(self.P_cond*1e-5,
+                                                      self.x1))
+        self.T_gen_outlet = K2C(libr_props.temperature(self.P_cond * 1e-5,
+                                                   self.x2))
+        self.T_abs_inlet_max = K2C(libr_props.temperature(self.P_evap * 1e-5,
+                                                          self.x2))
+        self.T_abs_outlet_max = K2C(libr_props.temperature(self.P_evap * 1e-5,
+                                                           self.x1))
         
-        self.h_gen_inlet = libr_props2.Hsat(self.x1, self.T_gen_inlet)
-        self.h_gen_outlet = libr_props2.Hsat(self.x2, self.T_gen_outlet)
-        self.h_abs_inlet = libr_props2.Hsat(self.x2, self.T_abs_inlet_max)
-        self.h_abs_outlet = libr_props2.Hsat(self.x1, self.T_abs_outlet_max)
+        self.h_gen_inlet = libr_props.massSpecificEnthalpy(
+            C2K(self.T_gen_inlet), self.x1)
+        self.h_gen_outlet = libr_props.massSpecificEnthalpy(
+            C2K(self.T_gen_outlet), self.x2)
+        self.h_abs_inlet = libr_props.massSpecificEnthalpy(
+            C2K(self.T_abs_inlet_max), self.x2)
+        self.h_abs_outlet = libr_props.massSpecificEnthalpy(
+            C2K(self.T_abs_outlet_max), self.x1)
         
         # Mass balance on LiBr
         self.m_concentrate = self.m_pump * self.x1 / self.x2
@@ -145,10 +149,8 @@ evap outlet""".split('\n')
         DeltaT_SHX_concentrate = self.Eff_SHX * DeltaT_max
         self.T_SHX_concentrate_outlet = self.T_gen_outlet \
             - DeltaT_SHX_concentrate
-        self.h_SHX_concentrate_outlet = CP.PropsSI('H',
-            'T', C2K(self.T_SHX_concentrate_outlet),
-            'P', self.P_cond,
-            librname(self.x2))
+        self.h_SHX_concentrate_outlet = libr_props.massSpecificEnthalpy(
+            C2K(self.T_SHX_concentrate_outlet), self.x2)
         self.Q_SHX = self.m_concentrate \
             * (self.h_gen_outlet - self.h_SHX_concentrate_outlet)
         
@@ -158,20 +160,25 @@ evap outlet""".split('\n')
             # Pre-cooling is required to reach saturation temperature
             self.Q_abs_pre_cool = self.m_concentrate \
                 * (self.h_abs_pre - self.h_abs_inlet)
-            self.T_abs_pre = np.nan
+            q,t,xl = libr_props.twoPhaseProps(self.h_abs_pre,
+                                              self.P_evap*1e-5,
+                                              self.x2)
+            self.T_abs_pre = K2C(t)
             # Minimum vapor pressure for absorption to occur
             self.P_abs_pre = np.inf
         else:
             self.Q_abs_pre_cool = 0
-            self.T_abs_pre = K2C(CP.PropsSI('T',
-                'H', self.h_abs_pre,
-                'P', self.P_evap,
-                librname(self.x2)))
+            #self.T_abs_pre = K2C(CP.PropsSI('T',
+            #    'H', self.h_abs_pre,
+            #    'P', self.P_evap,
+            #    librname(self.x2)))
+            self.T_abs_pre = np.nan
             # Minimum vapor pressure for absorption to occur
-            self.P_abs_pre = CP.PropsSI('P',
-                'T', C2K(self.T_abs_pre),
-                'Q', 0,
-                librname(self.x2))
+#            self.P_abs_pre = CP.PropsSI('P',
+#                'T', C2K(self.T_abs_pre),
+#                'Q', 0,
+#                librname(self.x2))
+            self.P_abs_pre = np.nan
                 
         # Heat rejection in absorber: energy balance
         self.h_abs_vapor_inlet = CP.PropsSI('H',
@@ -197,10 +204,11 @@ evap outlet""".split('\n')
             # Flash steam
             self.T_gen_pre = np.nan
         else:
-            self.T_gen_pre = K2C(CP.PropsSI('T',
-                'P', self.P_cond,
-                'H', self.h_gen_pre,
-                librname(self.x1)))
+            #self.T_gen_pre = K2C(CP.PropsSI('T',
+            #    'P', self.P_cond,
+            #    'H', self.h_gen_pre,
+            #    librname(self.x1)))
+            self.T_gen_pre = np.nan
         
         self.Q_gen_pre_heat = self.m_pump * (self.h_gen_inlet - self.h_gen_pre)
         
@@ -294,15 +302,18 @@ if __name__ == "__main__":
         P1,P2 = 673, 7445
         T1 = K2C(CP.PropsSI('T','P',P1,'Q',1,water))
         T2 = K2C(CP.PropsSI('T','P',P2,'Q',1,water))
-        c = ChillerLiBr1(T_evap=T1,T_cond=T2)
+        T1, T2 = 1, 35
+        c = ChillerLiBr1(T1,T2,0.5,0.7)
         c.x2=libr_props2.Xsat(89.9,c.P_cond)
         c.x1=libr_props2.Xsat(32.7,c.P_evap)
         print "Initializing..."
         print c
         print "Iterating..."
-        c.iterate1()    
-        print c
-    if False:
+        try:
+            c.iterate1()
+        finally:
+            print c
+    if True:
         # Figure 6.3 in the book
         Eff_SHX = np.linspace(0,1)
         COP = np.zeros_like(Eff_SHX)
