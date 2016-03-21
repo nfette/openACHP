@@ -25,6 +25,7 @@ availableCodeStringsBackward = {}
 standardOutvars = ['T', 'P', 'x', 'h', 's', 'u', 'v', 'Qu']
 standardUnits = ['K', 'bar', ' ', 'kJ/kg', 'kJ/kg-K', 'kJ/kg', 'm^3/kg', ' ']
 State = namedtuple('State',standardOutvars)
+StateType = np.dtype(dict(names=standardOutvars,formats='f'*8))
 
 def splitCode1(code):
     return [code / 100, code / 10 % 10, code % 10]
@@ -163,7 +164,7 @@ class AmmoniaProps:
             Qu : (float)
                 Vapor quality (kg/kg)
             out : (string)
-                Just return the named variable instead of a State.
+                [Optional] Just return the named variable instead of a State.
         """
         try:
             out = kwargs['out']

@@ -113,6 +113,7 @@ evap outlet""".split('\n')
         self.COP = 0
         self.W_pump = 0
         self.f = np.inf
+        self.x_abs_pre = self.x2
         
     def ZeroCheck(self):
         return self.W_pump + self.Q_evap_heat + self.Q_gen_total - self.Q_condenser_reject - self.Q_abs_total
@@ -164,6 +165,8 @@ evap outlet""".split('\n')
                                               self.P_evap*1e-5,
                                               self.x2)
             self.T_abs_pre = K2C(t)
+            self.x_abs_pre = xl
+            # ignore vapor quality, q
             # Minimum vapor pressure for absorption to occur
             self.P_abs_pre = np.inf
         else:
@@ -204,11 +207,12 @@ evap outlet""".split('\n')
             # Flash steam
             self.T_gen_pre = np.nan
         else:
-            #self.T_gen_pre = K2C(CP.PropsSI('T',
-            #    'P', self.P_cond,
-            #    'H', self.h_gen_pre,
-            #    librname(self.x1)))
-            self.T_gen_pre = np.nan
+            # The state is either saturated or subcooled.
+            # We need to calculate the temperature from specific heat.
+            cp = libr_props.massSpecificHeat(C2K(self.T_gen_inlet),self.x1)
+            deltaHsub = self.h_gen_inlet - self.h_gen_pre
+            deltaT = deltaHsub / cp
+            self.T_gen_pre = self.T_gen_inlet - deltaT
         
         self.Q_gen_pre_heat = self.m_pump * (self.h_gen_inlet - self.h_gen_pre)
         
@@ -238,10 +242,66 @@ evap outlet""".split('\n')
             - self.h_evap_inlet)
         
         self.COP = self.Q_evap_heat / self.Q_gen_total
-
+    
+    def getHeatCurve(self):
+        """Returns (Heat,T), arrays showing progress of the process.
+        Note: absorber heat input is negative.
+        Learn this from (my revision to) example 3.3.
+        """
+        Q, result = 0, []
+        # Starting coordinates
+        result.append((0,self.T_abs_pre))
+        # Heat input to reach a saturated state.
+        Q += self.m_concentrate * (self.h_abs_inlet - self.h_abs_pre)
+        result.append((Q,self.T_abs_inlet_max))
+        # Heat input to reach outlet.
+        Q += self.m_pump * self.h_abs_outlet \
+            - self.m_concentrate * self.h_abs_inlet \
+            - self.m_refrig * self.h_abs_vapor_inlet
+        result.append((Q,self.T_abs_outlet_max))
+        # Pump -- no heat, just work
+        
+        # Pump outlet to generator through SHX
+        Q += self.m_pump * self.h_gen_pre - self.m_pump * self.h_abs_outlet
+        result.append((Q,self.T_gen_pre))
+        # Generator preheat
+        Q += self.m_concentrate * self.h_gen_inlet \
+                - self.m_concentrate * self.h_gen_pre
+        result.append((Q,self.T_gen_inlet))        
+        # Generator proper
+        Q += self.m_concentrate * self.h_gen_outlet \
+                + self.m_refrig * self.h_gen_vapor_outlet \
+                - self.m_pump * self.h_gen_inlet
+        result.append((Q,self.T_gen_outlet))
+        # SHX, concentrate side
+        Q += self.m_concentrate * self.h_SHX_concentrate_outlet \
+                - self.m_concentrate * self.h_gen_outlet
+        result.append((Q,self.T_SHX_concentrate_outlet))
+        # Solution expander
+        result.append((Q,self.T_abs_pre))
+        # Condenser cool to saturated
+        result.append((Q,self.T_gen_inlet))
+        h_condenser_sat = CP.PropsSI("H","T",C2K(self.T_cond),"Q",0,
+                                     "HEOS::water")
+        Q += self.m_refrig * h_condenser_sat \
+                - self.m_refrig * self.h_gen_vapor_outlet
+        result.append((Q,self.T_cond))
+        # Real condense
+        Q += self.m_refrig * (self.h_condenser_outlet - h_condenser_sat)
+        result.append((Q,self.T_cond))
+        # What if condenser subcools? Later.
+        # Expander
+        T_into_evap = K2C(CP.PropsSI("T","H",self.h_condenser_outlet,
+                                 "P",self.P_evap,"HEOS::water"))
+        result.append((Q,T_into_evap))
+        # Evaporator
+        Q += self.m_refrig * (self.h_evap_outlet - self.h_evap_inlet)
+        result.append((Q,self.T_evap))
+        
+        return ([Q for (Q,T) in result], [T for (Q,T) in result])
 
     def iterate2(self,T_gen_outlet,T_abs_outlet):
-        """Resolve the concentrations."""
+        """Resolve the concentrations. Not yet implemented."""
         pass
     
     def __repr__(self):
@@ -252,7 +312,7 @@ evap outlet""".split('\n')
         m_pump m_concentrate m_refrig
         Eff_SHX
         T_SHX_concentrate_outlet Q_SHX
-        T_abs_pre h_abs_pre Q_abs_pre_cool P_abs_pre
+        T_abs_pre h_abs_pre x_abs_pre Q_abs_pre_cool P_abs_pre
         Q_abs_main Q_abs_total
         T_gen_pre
         Q_gen_pre_heat Q_gen_main Q_gen_total
@@ -268,7 +328,8 @@ evap outlet""".split('\n')
             self.m_pump, self.m_concentrate, self.m_refrig,
             self.Eff_SHX,
             self.T_SHX_concentrate_outlet, self.Q_SHX,
-            self.T_abs_pre, self.h_abs_pre, self.Q_abs_pre_cool, self.P_abs_pre,
+            self.T_abs_pre, self.h_abs_pre, self.x_abs_pre,
+            self.Q_abs_pre_cool, self.P_abs_pre,
             self.Q_abs_main, self.Q_abs_total,
             self.T_gen_pre,
             self.Q_gen_pre_heat, self.Q_gen_main, self.Q_gen_total,
@@ -284,7 +345,7 @@ evap outlet""".split('\n')
         kg/s kg/s kg/s
         K/K
         C W
-        C J/kg W Pa
+        C J/kg kg/kg W Pa
         W W
         C
         W W W
@@ -302,10 +363,13 @@ if __name__ == "__main__":
         P1,P2 = 673, 7445
         T1 = K2C(CP.PropsSI('T','P',P1,'Q',1,water))
         T2 = K2C(CP.PropsSI('T','P',P2,'Q',1,water))
+        # Trying different inputs
         T1, T2 = 1, 35
         c = ChillerLiBr1(T1,T2,0.5,0.7)
         c.x2=libr_props2.Xsat(89.9,c.P_cond)
         c.x1=libr_props2.Xsat(32.7,c.P_evap)
+        # Custom example
+        c = ChillerLiBr1(T_evap=5,T_cond=45,x1=0.6026,x2=0.66)
         print "Initializing..."
         print c
         print "Iterating..."
@@ -313,7 +377,8 @@ if __name__ == "__main__":
             c.iterate1()
         finally:
             print c
-    if True:
+        
+    if False:
         # Figure 6.3 in the book
         Eff_SHX = np.linspace(0,1)
         COP = np.zeros_like(Eff_SHX)
