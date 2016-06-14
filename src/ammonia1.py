@@ -45,7 +45,8 @@ refrig evap outlet
 refrig cehx sat vapor
 refrig cehx vapor outlet
 rectifier_liquid
-gen_vapor_formation""".replace(" ","_").split('\n')
+gen_vapor_formation
+abs_vapor_final""".replace(" ","_").split('\n')
         vars = """Q_abs,W
 Q_gen,W
 Q_cond,W
@@ -77,6 +78,7 @@ m_refrig,kg/s""".split()
         self.refrig_cehx_vapor_outlet = amm.props2(T=400,P=10,x=0.5)
         self.rectifier_liquid = amm.props2(T=400,P=10,x=0.5)
         self.gen_vapor_formation = amm.props2(T=400,P=10,x=0.5)
+        self.abs_vapor_final = amm.props2(T=400,P=10,x=0.5)
         
         self.Q_abs = 0
         self.Q_gen = 0
@@ -113,7 +115,10 @@ m_refrig,kg/s""".split()
             'name unit value'.split())
         return states + '\n\n' + thevars
     
-    def update(self, x_refrig=0.999869, T_evap=5.3+273.15, T_cond=38.7+273.15, Qu_evap=0.998,
+    def update(self, x_refrig=0.999869,
+               T_evap=5.3+273.15,
+               T_cond=38.7+273.15,
+               Qu_evap=0.998,
                eff_CEHX=0.95,
                T_abs_outlet=37+273.15,
                T_gen_outlet=101+273.15,
@@ -207,7 +212,9 @@ m_refrig,kg/s""".split()
         self.gen_vapor_formation = amm.props2(T=T_gen_outlet,
                                               P=self.weak_gen_outlet.P,
                                               Qu=1)
-                                              
+        self.abs_vapor_final = amm.props2(T=self.weak_exp_outlet.T,
+                                          P=self.weak_exp_outlet.P,
+                                          Qu=1)
         #self.Q_abs = self.m_rich * self. self.m_weak * self.weak_exp_outlet
     def updateRefrig(self, x_refrig, T_evap, T_cond, Qu_evap):
         evap_outlet = amm.props2(T=T_evap,
@@ -300,6 +307,31 @@ m_refrig,kg/s""".split()
         m_vapor = m_refrig * (x_refrig - x_liquid) / (x_vapor - x_liquid)
         m_liquid = m_refrig * (x_refrig - x_vapor) / (x_vapor - x_liquid)
         return m_vapor, m_liquid
+    def getPaths(self):
+        return [(0,1),
+            (1,2),
+            (2,3),
+            (3,7),
+            (7,8),
+            (8,3),
+            (7,9),
+            (9,16),
+            (16,8),
+            (3,4),
+            (4,17),
+            (17,7),
+            (4,5),
+            (5,6),
+            (6,0),
+            (9,10),
+            (10,11),
+            (11,12),
+            (12,13),
+            (13,14),
+            (14,15),
+            (15,0),
+            (15,18),
+            (18,6)]
         
 if __name__ == "__main__":
     a = AmmoniaChiller()

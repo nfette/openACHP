@@ -1,0 +1,30 @@
+Refrigerant cycle:
+1. Input condenser and evaporator outlet temperatures, mass fraction.
+2. Compute condenser and evaporator pressures.
+Refrigerant CEHX:
+1. Input inlet states, effectiveness.
+2. Compute outlet states.
+Refrigerant expansion valve:
+1. Input inlet state
+2. Compute outlet state
+Absorber step 1:
+1. Input absorber pressure and outlet temperature.
+2. Compute outlet mass fraction.
+Generator step 1:
+1. Input generator pressure and outlet temperature.
+2. Compute outlet mass fraction.
+Pump:
+1. Input inlet state and outlet pressure.
+2. Compute outlet state.
+SHX:
+1. Input inlet states and effectiveness.
+2. Output outlet states.
+Solution expansion valve:
+1. Input inlet state.
+2. Compute outlet state.
+Absorber step 2:
+1. Input inlet temperature.
+2. Determine heat flow and saturation temperature.
+Generator step 2:
+1. Input inlet temperature.
+2. Determine heat flow and saturation temperature.

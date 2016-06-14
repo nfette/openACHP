@@ -14,6 +14,8 @@ import libr_props, libr_props2
 import tabulate
 import numpy as np
 from collections import namedtuple
+from scipy.optimize import fsolve
+from scipy.interpolate import PchipInterpolator
 
 water = 'HEOS::Water'
 librname = lambda(x): 'INCOMP::LiBr[{}]'.format(x)
@@ -36,6 +38,232 @@ def nullPP(fluid):
 T_ref = 20
 P_ref = 101325
 h_w_ref = CP.PropsSI('H','T',C2K(T_ref),'P',P_ref,water)
+
+class GeneratorLiBr(object):
+    """Provide process heat canonical curve for generator in various forms.
+        For purpose of external heat exchange,  generator process goes ...
+        P_cond, T_gen_pre, x1  (subcooled)
+        P_cond, T_gen_inlet, x1 (saturated liquid) + backwards flowing vapor
+        P_cond, T_gen_outlet, x2 (saturated liquid)
+        
+        Args:
+            P : Pressure (Pa)            
+                The process is assumed to occur at constant pressure level.
+            m_in : Solution inlet mass flow rate (kg/s)
+                The mass flow rate of the stream pumped up from low pressure.
+            T_in : Solution inlet temperature (C)
+                Needed to determine inlet state, which may be subcooled.
+            x_in : Solution inlet mass fraction (kg/kg)
+                The LiBr mass relative to total mass
+            x_out : Solution outlet mass fraction (kg/kg)
+                The outlet solution LiBr mass fraction
+    """
+        
+    def __init__(self, P, m_in, T_in, x_in, x_out):        
+        self.update(P, m_in, T_in, x_in, x_out)
+        # Create the functions ...
+        self.q = np.vectorize(self._q)
+        self.T = np.vectorize(self._T)
+        # Create faster functions using splines ...
+        
+    def update(self, P, m_in, T_in, x_in, x_out):
+        self.P = P        
+        self.m_in = m_in
+        self.T_in = T_in
+        self.x_in = x_in
+        self.x_out = x_out
+        
+        # Find inlet enthalpy.
+        # Find saturation point at inlet concentration.
+        # Find ...
+        self.T_sat = K2C(libr_props.temperature(self.P * 1e-5, self.x_in))
+        self.T_out = K2C(libr_props.temperature(self.P * 1e-5, self.x_out))
+        self.h_sat = libr_props.massSpecificEnthalpy(C2K(self.T_sat), self.x_in)
+        self.h_out = libr_props.massSpecificEnthalpy(C2K(self.T_out),self.x_out)
+        
+        self.cp_in = libr_props.massSpecificHeat(C2K(self.T_in),self.x_in)
+        # If h_in is an input:
+        if False:
+            preheat = (self.h_sat - self.h_in)/self.cp_in
+            self.T_in = self.T_sat - preheat
+        else:
+            preheat = self.T_sat - self.T_in
+            self.h_in = self.h_sat - preheat * self.cp_in
+        
+        self.h_vapor_out = CP.PropsSI('H','P', self.P,'T', C2K(self.T_sat), water) - h_w_ref
+        
+        # Mass balance on LiBr
+        self.m_out = self.m_in * self.x_in / self.x_out
+        # Mass balance on Water
+        self.m_vapor_out = self.m_in - self.m_out
+        self.m_total = self.m_out
+        
+        self.Q_preheat = self.m_in * (self.h_sat - self.h_in)
+        self.Q_desorb = self.m_out * self.h_out \
+                + self.m_vapor_out * self.h_vapor_out \
+                - self.m_in * self.h_sat
+        
+        
+        # Determine a reasonable limit for extending the domain.
+        self.Tmax = K2C(libr_props.temperature(self.P*1e-5,libr_props.xmax))
+        
+        
+    def __repr__(self):
+        names = """P
+        x_in
+        x_out
+        T_in
+        m_in
+        T_sat
+        T_out
+        m_out
+        m_vapor_out
+        h_in
+        h_sat
+        h_out
+        h_vapor_out
+        Q_preheat
+        Q_desorb
+        Q_total""".split()
+        vals = [self.P,
+                self.x_in,
+                self.x_out,
+                self.T_in,
+                self.m_in,
+                self.T_sat,
+                self.T_out,
+                self.m_out,
+                self.m_vapor_out,
+                self.h_in,
+                self.h_sat,
+                self.h_out,
+                self.h_vapor_out,
+                self.Q_preheat,
+                self.Q_desorb,
+                self.Q_preheat+self.Q_desorb]
+        units = """Pa
+        kg/kg kg/kg
+        C
+        kg/s
+        C C
+        kg/s kg/s
+        J/kg J/kg J/kg J/kg
+        W W W""".split()
+        return tabulate.tabulate(zip(names,vals,units))
+
+    def _q_helper(self,T):
+        x_local = libr_props.massFraction(C2K(T),self.P * 1e-5)
+        # Could parametrize this by x, but libr_props.temperature also has an
+        # implicit solve. Only P(T,x) is explicit.
+        h_vapor_local = CP.PropsSI('H',
+                                   'P', self.P,
+                                   'T', C2K(T), water) - h_w_ref
+        h_solution_local = libr_props.massSpecificEnthalpy(C2K(T), x_local)
+        # Mass balance on LiBr
+        m_solution_local = self.m_in * self.x_in / x_local
+        
+        hlv1 = h_vapor_local - h_solution_local
+        q1 = self.m_total * h_vapor_local - m_solution_local * hlv1
+        return q1
+        
+    def _T_helper(self,q,Tguess):
+        func = lambda(T):self._q_helper(T)-q
+        sol = fsolve(func, Tguess)
+        return sol[0]
+        
+    def _q(self,T):
+        """Provide process heat canonical curve for generator in various forms.
+        Assumes that
+        * inlet solution state is obtained from self,
+        * generated vapor is flowing in reverse direction and
+        * it is everywhere in local equilibrium with solution.
+        
+        Args
+        ----
+        T : Temperature (deg C)
+            The local temperature
+        
+        Returns
+        -------
+        q : Local progress index
+            Measured as cumulative heat flux (W).
+        Q : Total heat flux (W)
+            The total amount of heat transferred into the generator.
+        """
+        
+        hlv0 = self.h_vapor_out - self.h_sat
+        q0 = self.m_total * self.h_vapor_out - self.m_in * hlv0
+        
+        if T < self.T_in:
+            raise "Generator outlet must be greater than pre-inlet temperature!"
+        elif T < self.T_sat:
+            # The state is either saturated or subcooled.
+            # Use linear interpolation.
+            q = self.m_in * self.cp_in * (T - self.T_in)
+        else:
+            x_local = libr_props.massFraction(C2K(T),self.P * 1e-5)
+            h_vapor_local = CP.PropsSI('H',
+                                       'P', self.P,
+                                       'T', C2K(T), water) - h_w_ref
+            h_solution_local = libr_props.massSpecificEnthalpy(C2K(T), x_local)
+            # Mass balance on LiBr
+            m_solution_local = self.m_in * self.x_in / x_local
+            
+            hlv1 = h_vapor_local - h_solution_local
+            q1 = self.m_total * h_vapor_local - m_solution_local * hlv1
+            
+            q = (q1 - q0) + self.Q_preheat
+        # TODO
+        # If q > Q (iff T > T_solution_outlet) then result is invalid.
+        return q
+        
+    def _T(self,q):
+        if q < 0:
+            raise "Process index must be greater than 0!"
+        elif q < self.Q_preheat:
+            T = self.T_in + q / (self.m_in * self.cp_in)
+        #elif q < self.Q_desorb + self.Q_preheat:
+        else:
+            hlv0 = self.h_vapor_out - self.h_sat
+            q0 = self.m_total * self.h_vapor_out - self.m_in * hlv0
+            q1 = q0 + (q - self.Q_preheat)
+            alpha = (q - self.Q_preheat) / self.Q_desorb
+            Tguess = alpha*self.T_sat+(1-alpha)*self.T_out
+            T = self._T_helper(q1,Tguess)
+        #else:
+        #    raise "Process index extends past process
+        return T
+        
+class GeneratorLiBrInterpolated(GeneratorLiBr):
+    def __init__(self, P, m_in, T_in, x_in, x_out):
+        print "I am still alive!"
+        self.update(P, m_in, T_in, x_in, x_out)
+        TT = np.linspace(self.T_in,self.Tmax)
+        qfunc = np.vectorize(self._q)
+        qq = qfunc(TT)
+        if np.isnan(qq).any():
+            print "There is a problem with some nans"
+        # Create extended domain such that interpolate saturates at endpoints
+        qqmod = np.zeros(qq.size+1)
+        qqmod[0:-1] = qq
+        TTmod = np.zeros(qq.size+1)
+        TTmod[0:-1] = TT
+        
+        import matplotlib.pyplot as plt
+        plt.figure()        
+        qqmod[-1] = qqmod[-2]
+        if (np.diff(qqmod) < 0).any():
+            print "Captain, it's a non-monotonic function!"
+        TTmod[-1] = TTmod[-2] + 100
+        import tabulate
+        print tabulate.tabulate(zip(TTmod,qqmod))
+        plt.plot(TTmod,qqmod)
+        self.q = PchipInterpolator(TTmod,qqmod,extrapolate=True)
+        plt.figure()
+        qqmod[-1] = qqmod[-2] * 2
+        TTmod[-1] = TTmod[-2]
+        plt.plot(qqmod,TTmod)
+        self.T = PchipInterpolator(qqmod,TTmod,extrapolate=True)
 
 class ChillerLiBr1:
     def __init__(self,
@@ -298,11 +526,113 @@ evap outlet""".split('\n')
         Q += self.m_refrig * (self.h_evap_outlet - self.h_evap_inlet)
         result.append((Q,self.T_evap))
         
-        return ([Q for (Q,T) in result], [T for (Q,T) in result])
+        return zip(*result)
 
     def iterate2(self,T_gen_outlet,T_abs_outlet):
         """Resolve the concentrations. Not yet implemented."""
         pass
+    
+    def buildGeneratorHeatCurve(self):
+        """Provide process heat canonical curve for generator in various forms.
+        For purpose of external heat exchange,  generator process goes ...
+        P_cond, T_gen_pre, x1  (subcooled)
+        P_cond, T_gen_inlet, x1 (saturated liquid) + backwards flowing vapor
+        P_cond, T_gen_outlet, x2 (saturated liquid)
+        
+        Returns
+        -------
+        T : callable
+            Maps process progress in terms of heat flux (W) to local
+            temperature T (deg C).
+        q : callable
+            Maps process local temperature T (deg C) and total heat flux Q (W)
+            to the local progress index, cumulative heat flux q (W).
+        """
+        self.genpoints, Q = [], 0
+        # 0, pre-inlet
+        self.genpoints.append((Q,self.T_gen_pre))
+        # 1, Generator preheat
+        Q += self.m_concentrate * self.h_gen_inlet \
+                - self.m_concentrate * self.h_gen_pre
+        self.genpoints.append((Q,self.T_gen_inlet))        
+        # 2, Generator proper
+        Q += self.m_concentrate * self.h_gen_outlet \
+                + self.m_refrig * self.h_gen_vapor_outlet \
+                - self.m_pump * self.h_gen_inlet
+        self.genpoints.append((Q,self.T_gen_outlet))
+        
+    def generatorHeatCurveQ(self,T,x_out):
+        """Provide process heat canonical curve for generator in various forms.
+        Assumes that
+        * inlet solution state is obtained from self,
+        * generated vapor is flowing in reverse direction and
+        * it is everywhere in local equilibrium with solution.
+        
+        Args
+        ----
+        T : Temperature (deg C)
+            The local temperature
+        x_out : Mass fraction (kg/kg)
+            The outlet solution LiBr mass fraction
+        
+        Returns
+        -------
+        q : Local progress index
+            Measured as cumulative heat flux (W).
+        Q : Total heat flux (W)
+            The total amount of heat transferred into the generator.
+        """
+        
+        # We may need m_concentrate. It depends on Q -- solve from inlet.
+        h_solution_inlet = self.h_gen_inlet
+        h_vapor_outlet = self.h_gen_vapor_outlet
+        T_solution_outlet = K2C(libr_props.temperature(self.P_cond * 1e-5,
+                                               x_out))
+        h_solution_outlet = libr_props.massSpecificEnthalpy(
+            C2K(T_solution_outlet), x_out)
+        # Mass balance on LiBr
+        m_solution_outlet = self.m_pump * self.x1 / x_out
+        # Mass balance on Water
+        m_vapor_outlet = self.m_pump - m_solution_outlet
+        m_total = m_solution_outlet
+        
+        hlv0 = h_vapor_outlet - h_solution_inlet
+        q0 = m_total * h_vapor_outlet - self.m_pump * hlv0
+        
+        Q = m_solution_outlet * h_solution_outlet \
+            + m_vapor_outlet * h_vapor_outlet \
+            - self.m_pump * h_solution_inlet
+        
+        q = 0
+        T0,T1,T2=self.genpoints[0][1],self.genpoints[1][1],self.genpoints[2][1]
+        Q0,Q1,Q2=self.genpoints[0][0],self.genpoints[1][0],self.genpoints[2][0]
+        if T < T0:
+            raise "Generator outlet must be greater than pre-inlet temperature!"
+        elif T < T1:
+            # The state is either saturated or subcooled.
+            # Use linear interpolation.
+            q = (T - T0) / (T1 - T0) * (Q1 - Q0)
+        else:
+            x_local = libr_props.massFraction(C2K(T),self.P_cond * 1e-5)
+            h_vapor_local = CP.PropsSI('H',
+                                       'P', self.P_cond,
+                                       'T', C2K(T), water) - h_w_ref
+            h_solution_local = libr_props.massSpecificEnthalpy(C2K(T), x_local)
+            # Mass balance on LiBr
+            m_solution_local = self.m_pump * self.x1 / x_local
+            
+            hlv1 = h_vapor_local - h_solution_local
+            q1 = m_total * h_vapor_local - m_solution_local * hlv1
+            
+            q = (q1 - q0) + (Q1 - Q0)
+        # TODO
+        # If q > Q (iff T > T_solution_outlet) then result is invalid.
+        return q, Q
+        
+    def generatorHeatCurveT(self,Q):
+        """Provide process heat canonical curve for generator in various forms."""
+        T = 0
+        return T
     
     def __repr__(self):
         names = """T_evap T_cond P_evap P_cond

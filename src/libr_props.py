@@ -3,7 +3,7 @@
 Created on Thu Feb 19 22:25:20 2015
 
 The purpose of this file is to check the compatibility of the relations from
-Patel and Klomfar, Int J Refrig, Vol 20, pp 566-578 (2006) with the CoolProp
+Patek and Klomfar, Int J Refrig, Vol 20, pp 566-578 (2006) with the CoolProp
 functions for water, and compare to a known set of code using these relations.
 
 Units used:
@@ -41,6 +41,7 @@ import numpy as np
 
 MW_LiBr = 0.08685 # kg/mol
 MW_H2O = 0.018015268 # kg/mol
+xmax = 0.7
 
 def mole2massFraction(x):
     """input: mole fraction, x, of LiBr"""
@@ -156,7 +157,7 @@ def objective_x(x,*TTheta):
     #      .format(x,ThetaOut,dThdx,f,fprime))
     return [f,fprime]
     
-def massFraction(T,P,guess=(0.4,)):
+def massFraction(T,P,guess=(0.5,)):
     """Returns the composition of a lithium bromide-water mixture at
     the given the temprature and pressure using the formulation presented by
     Patek and Klomfar, Int. J. of Refrigeration, Vol 29, pp. 566-578, (2006)
@@ -179,7 +180,7 @@ def massFraction(T,P,guess=(0.4,)):
     pressurePa = P * 1e5
     Q = 0.0
     theta = PropsSI("T","P",pressurePa,"Q",Q,"water") # [K]
-    print("T,P,Theta = {}, {}, {}".format(T,P,theta))
+    #print("T,P,Theta = {}, {}, {}".format(T,P,theta))
     soln2 = minimize(objective_x, guess, args=(T,theta),jac=True,bounds=[(0,1)])
     #print("Success, message: {}, {}".format(soln2.success, soln2.message))
     return soln2.x[0]
