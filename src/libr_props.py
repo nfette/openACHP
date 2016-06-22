@@ -120,8 +120,7 @@ def objective_T(T,*ThetaX):
     #      .format(Theta,x,T,ThetaOut,dThdT))
     return [(ThetaOut - Theta) ** 2, 2 * (ThetaOut - Theta) * dThdT]
     
-def temperature(P,x):
-    global soln
+def temperature(P,x):    
     """T_LiBrH2O returns the temperature of a lithium bromide-water mixture at
     the given the pressure and composition using the formulation presented by
     Patek and Klomfar, Int. J. Refrig., Vol 29, pp 566-578 (2006)
@@ -129,10 +128,12 @@ def temperature(P,x):
     Notes: "above" the mixture: is completely water vapor. So there are only
     two relevant properties to find equilibrium vapor pressure (?).
 
-    Units: T [K]
-           x = mass fraction LiBr
-           P [bar]
+    Units:
+        T [K]
+        x = mass fraction LiBr
+        P [bar]
     """
+    global soln
     # Just call a solver on the previously defined pressure function
     # Trick is to get the guess temperature on the high side.
     # Does this constraint do anything? Maybe not.
@@ -165,9 +166,10 @@ def massFraction(T,P,guess=(0.5,)):
     Notes: "above" the mixture: is completely water vapor. So there are only
     two relevant properties to find equilibrium vapor pressure (?).
 
-    Units: T [K]
-           x = mass fraction LiBr
-           P [bar]    
+    Units:
+        T [K]
+        x = mass fraction LiBr
+        P [bar]
     """
     global soln2
     # Just call a solver on the previously defined pressure function

@@ -243,29 +243,113 @@ class GeneratorLiBrInterpolated(GeneratorLiBr):
         qq = qfunc(TT)
         if np.isnan(qq).any():
             print "There is a problem with some nans"
-        # Create extended domain such that interpolate saturates at endpoints
-        qqmod = np.zeros(qq.size+1)
-        qqmod[0:-1] = qq
-        TTmod = np.zeros(qq.size+1)
-        TTmod[0:-1] = TT
-        
-        import matplotlib.pyplot as plt
-        plt.figure()        
-        qqmod[-1] = qqmod[-2]
-        if (np.diff(qqmod) < 0).any():
-            print "Captain, it's a non-monotonic function!"
-        TTmod[-1] = TTmod[-2] + 100
-        import tabulate
-        print tabulate.tabulate(zip(TTmod,qqmod))
-        plt.plot(TTmod,qqmod)
-        self.q = PchipInterpolator(TTmod,qqmod,extrapolate=True)
-        plt.figure()
-        qqmod[-1] = qqmod[-2] * 2
-        TTmod[-1] = TTmod[-2]
-        plt.plot(qqmod,TTmod)
-        self.T = PchipInterpolator(qqmod,TTmod,extrapolate=True)
 
-class ChillerLiBr1:
+        # Create extended domain such that interpolate saturates at endpoints.        
+        qq1 = np.resize(qq,qq.size+1)
+        TT1 = np.resize(TT,TT.size+1)
+        qq1[-1] = qq1[-2]
+        TT1[-1] = TT1[-2] + 1
+        if (np.diff(qq1) < 0).any():
+            print "Captain, it's a non-monotonic function!"        
+        self.q = PchipInterpolator(TT1,qq1,extrapolate=True)
+        
+        # Need to use fresh arrays because they are referenced.
+        qq2 = np.resize(qq,qq.size+1)
+        TT2 = np.resize(TT,TT.size+1)
+        qq2[-1] = qq2[-2] * 1.02
+        TT2[-1] = TT2[-2]
+        self.T = PchipInterpolator(qq2,TT2,extrapolate=True)
+
+        # Show that it worked
+        import tabulate
+        print tabulate.tabulate(zip(TT1,qq1))
+        print tabulate.tabulate(zip(TT2,qq2))
+        import matplotlib.pyplot as plt
+        plt.figure()                
+        plt.plot(TT1,qq1,'.'); plt.title("qqmod vs TTmod for q()")
+        plt.figure()
+        plt.plot(qq2,TT2,'.'); plt.title("TTmod vs qqmod for T()")
+        
+class AbsorberLiBr1(object):
+    """Provides a canonical heat (output) curve for a LiBr water vapor absorber.
+    Assumes:
+        Vapor comes into equilibrium with surface only where it is absorbed.
+    
+    Inputs:
+        P : (Pa)
+            Process pressure
+        m_in : (kg/s)
+            Solution inlet mass flow rate
+        T_in : (deg C)
+            Solution inlet temperature        
+        x_in : (kg/kg)
+            Solution inlet mass fraction LiBr
+        T_vapor_inlet : (deg C)
+            Vapor inlet temperature
+    """
+    def __init__(self,P,m_in,T_in,x_in,T_vapor_inlet):
+        self.P=P
+        self.m_in=m_in
+        self.T_in=T_in
+        self.x_in=x_in
+        self.T_vapor_inlet = T_vapor_inlet
+        # TODO
+        self.h_in = libr_props.massSpecificEnthalpy(C2K(T_in),x_in)
+        self.h_vapor_inlet = CP.PropsSI('H','P',P,'T',C2K(T_vapor_inlet),water) - h_w_ref
+        
+        # Set up bounds and points for interpolation.
+        # Absorber limit is liquid water.
+        self.Tmin = CP.PropsSI('T','P',P,'Q',0,water)
+        x_points = np.linspace(x_in,0.1)
+        T_points = np.zeros_like(x_points)
+        q_points = np.zeros_like(x_points)
+        #q_func = np.vectorize(self._q)
+        #q_points = q_func(T_points)
+        for i,x in enumerate(x_points):
+            T_points[i],q_points[i] = self._qx(x)
+        
+        # Forward function
+        import matplotlib.pyplot as plt
+        T_points1 = np.resize(T_points,len(T_points)+1)
+        q_points1 = np.resize(q_points,len(T_points)+1)
+        T_points1[-1] = T_points[-1] - 5
+        q_points1[-1] = q_points[-1]
+        
+        # Inverse function
+        T_points2 = np.resize(T_points,len(T_points)+1)
+        q_points2 = np.resize(q_points,len(T_points)+1)
+        T_points2[-1] = T_points[-1]
+        q_points2[-1] = q_points[-1] * 1.05
+        
+        import tabulate
+        xmod = np.resize(x_points,len(x_points)+1)
+        print tabulate.tabulate(zip(xmod,T_points1,q_points1,
+                                    T_points2,q_points2),
+                                    headers=['x','T1','q1','T2','q2'])
+        plt.figure(); plt.plot(T_points1,q_points1); plt.title("q(T)")
+        plt.figure(); plt.plot(q_points1,T_points1); plt.title("T(q)")
+        self.q = PchipInterpolator(T_points1[::-1], q_points1[::-1])
+        self.T = PchipInterpolator(q_points2, T_points2)
+        
+    def _q(self,T):
+        # First, determine the mass fraction here.
+        x_local = libr_props.massFraction(C2K(T),self.P*1e-5)
+        return self._qx(x_local)
+    
+    def _qx(self,x_local):
+        T = K2C(libr_props.temperature(self.P*1e-5,x_local))
+        dx = self.x_in - x_local
+        # TODO
+        h_local = libr_props.massSpecificEnthalpy(C2K(T),x_local)
+        # And calculate
+        m_vapor = self.m_in * dx / x_local
+        m_out = self.m_in + m_vapor
+        # Heat is outbound.
+        result = self.m_in * self.h_in + m_vapor * self.h_vapor_inlet \
+            - m_out * h_local
+        return T,result
+    
+class ChillerLiBr1(object):
     def __init__(self,
                  T_evap=1.5, T_cond=39.9,
                  x1=0.567, x2=0.624,
@@ -633,6 +717,19 @@ evap outlet""".split('\n')
         """Provide process heat canonical curve for generator in various forms."""
         T = 0
         return T
+    
+    def getGeneratorStream(self):
+        gen = GeneratorLiBrInterpolated(self.P_cond,self.m_pump,self.T_gen_pre,
+                                        self.x1,self.x2)
+        return gen
+        
+    def getAbsorberStream(self):
+        absorber = AbsorberLiBr1(self.P_evap,
+                                 self.m_concentrate,
+                                 self.T_abs_pre,
+                                 self.x_abs_pre,
+                                 self.T_evap)
+        return absorber
     
     def __repr__(self):
         names = """T_evap T_cond P_evap P_cond
