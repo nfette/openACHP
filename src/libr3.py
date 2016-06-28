@@ -16,6 +16,7 @@ import numpy as np
 from collections import namedtuple
 from scipy.optimize import fsolve
 from scipy.interpolate import PchipInterpolator
+import HRHX_integral_model
 
 water = 'HEOS::Water'
 librname = lambda(x): 'INCOMP::LiBr[{}]'.format(x)
@@ -235,7 +236,7 @@ class GeneratorLiBr(object):
         return T
         
 class GeneratorLiBrInterpolated(GeneratorLiBr):
-    def __init__(self, P, m_in, T_in, x_in, x_out):
+    def __init__(self, P, m_in, T_in, x_in, x_out, debug=False):
         print "I am still alive!"
         self.update(P, m_in, T_in, x_in, x_out)
         TT = np.linspace(self.T_in,self.Tmax)
@@ -261,14 +262,14 @@ class GeneratorLiBrInterpolated(GeneratorLiBr):
         self.T = PchipInterpolator(qq2,TT2,extrapolate=True)
 
         # Show that it worked
-        import tabulate
-        print tabulate.tabulate(zip(TT1,qq1))
-        print tabulate.tabulate(zip(TT2,qq2))
-        import matplotlib.pyplot as plt
-        plt.figure()                
-        plt.plot(TT1,qq1,'.'); plt.title("qqmod vs TTmod for q()")
-        plt.figure()
-        plt.plot(qq2,TT2,'.'); plt.title("TTmod vs qqmod for T()")
+        if debug:
+            print tabulate.tabulate(zip(TT1,qq1))
+            print tabulate.tabulate(zip(TT2,qq2))
+            import matplotlib.pyplot as plt
+            plt.figure()                
+            plt.plot(TT1,qq1,'.'); plt.title("qqmod vs TTmod for q()")
+            plt.figure()
+            plt.plot(qq2,TT2,'.'); plt.title("TTmod vs qqmod for T()")
         
 class AbsorberLiBr1(object):
     """Provides a canonical heat (output) curve for a LiBr water vapor absorber.
@@ -287,7 +288,7 @@ class AbsorberLiBr1(object):
         T_vapor_inlet : (deg C)
             Vapor inlet temperature
     """
-    def __init__(self,P,m_in,T_in,x_in,T_vapor_inlet):
+    def __init__(self,P,m_in,T_in,x_in,T_vapor_inlet,debug=False):
         self.P=P
         self.m_in=m_in
         self.T_in=T_in
@@ -309,7 +310,6 @@ class AbsorberLiBr1(object):
             T_points[i],q_points[i] = self._qx(x)
         
         # Forward function
-        import matplotlib.pyplot as plt
         T_points1 = np.resize(T_points,len(T_points)+1)
         q_points1 = np.resize(q_points,len(T_points)+1)
         T_points1[-1] = T_points[-1] - 5
@@ -321,15 +321,19 @@ class AbsorberLiBr1(object):
         T_points2[-1] = T_points[-1]
         q_points2[-1] = q_points[-1] * 1.05
         
-        import tabulate
-        xmod = np.resize(x_points,len(x_points)+1)
-        print tabulate.tabulate(zip(xmod,T_points1,q_points1,
+        if debug:        
+            import matplotlib.pyplot as plt
+            import tabulate
+            xmod = np.resize(x_points,len(x_points)+1)
+            print tabulate.tabulate(zip(xmod,T_points1,q_points1,
                                     T_points2,q_points2),
                                     headers=['x','T1','q1','T2','q2'])
-        plt.figure(); plt.plot(T_points1,q_points1); plt.title("q(T)")
-        plt.figure(); plt.plot(q_points1,T_points1); plt.title("T(q)")
+            plt.figure(); plt.plot(T_points1,q_points1); plt.title("q(T)")
+            plt.figure(); plt.plot(q_points2,T_points2); plt.title("T(q)")
+        # Interpolate data must be in increasing order, so we reverse it
+        # compared to reaction direction.
         self.q = PchipInterpolator(T_points1[::-1], q_points1[::-1])
-        self.T = PchipInterpolator(q_points2, T_points2)
+        self.T = PchipInterpolator(q_points2[::-1], T_points2[::-1])
         
     def _q(self,T):
         # First, determine the mass fraction here.
@@ -344,11 +348,42 @@ class AbsorberLiBr1(object):
         # And calculate
         m_vapor = self.m_in * dx / x_local
         m_out = self.m_in + m_vapor
-        # Heat is outbound.
-        result = self.m_in * self.h_in + m_vapor * self.h_vapor_inlet \
-            - m_out * h_local
+        # Heat is inbound.
+        result = -self.m_in * self.h_in - m_vapor * self.h_vapor_inlet \
+            + m_out * h_local
         return T,result
-    
+        
+    def __repr__(self):
+        names = """P
+        m_in
+        x_in
+        T_in
+        T_vapor_inlet
+        h_in
+        h_vapor_out
+        Q_preheat
+        Q_desorb
+        Q_total""".split()
+        vals = [self.P,
+                self.m_in,
+                self.x_in,
+                self.T_in,
+                self.T_vapor_inlet,
+                self.h_in,
+                self.h_vapor_out,
+                self.Q_preheat,
+                self.Q_desorb,
+                self.Q_preheat+self.Q_desorb]
+        units = """Pa
+        kg/kg kg/kg
+        C
+        kg/s
+        C C
+        kg/s kg/s
+        J/kg J/kg J/kg J/kg
+        W W W""".split()
+        return tabulate.tabulate(zip(names,vals,units))
+        
 class ChillerLiBr1(object):
     def __init__(self,
                  T_evap=1.5, T_cond=39.9,
@@ -730,6 +765,16 @@ evap outlet""".split('\n')
                                  self.x_abs_pre,
                                  self.T_evap)
         return absorber
+    
+    def getCondenserStream(self):
+        h_rel = self.h_gen_vapor_outlet + h_w_ref
+        condenser = HRHX_integral_model.waterStream(self.P_cond,h_rel,self.m_refrig)
+        return condenser
+        
+    def getEvaporatorStream(self):
+        h_rel = self.h_evap_inlet + h_w_ref
+        evaporator = HRHX_integral_model.waterStream(self.P_evap,h_rel,self.m_refrig)
+        return evaporator
     
     def __repr__(self):
         names = """T_evap T_cond P_evap P_cond
