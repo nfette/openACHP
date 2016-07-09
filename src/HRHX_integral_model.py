@@ -9,6 +9,7 @@ import scipy.optimize
 import matplotlib.pyplot as plt
 import numpy as np
 from hw2_1 import CelsiusToKelvin as C2K, KelvinToCelsius as K2C
+from exceptions import ValueError
 
 class stream(object):
     def setQ(self,Q):
@@ -20,12 +21,15 @@ class stream(object):
 
 class streamExample1(object):
     def __init__(self, T_inlet=0, mdot=1.0, cp=1.0):
-        self.C = mdot * cp
+        self.mdot = mdot
+        self.cp = cp
         self.T_inlet = T_inlet
     def q(self,T):
-        return self.C * (T - self.T_inlet)
+        C = self.mdot * self.cp
+        return C * (T - self.T_inlet)
     def T(self,q):
-        return self.T_inlet + q / self.C
+        C = self.mdot * self.cp
+        return self.T_inlet + q / C
 
 class streamExample2(object):
     """Pure fluid boiling at constant temperature.
@@ -150,12 +154,20 @@ class counterflow_integrator(object):
         self.func2 = lambda(Q):Q-self.hot.q(self.cold.T(Q))
         
         self.calcQmax()
-    def calcUA(self,Q):
+    def calcUA(self,Q,eff=False):
         # OLD
         #func = lambda(q):1./(self.hot.T(Q-q)-self.cold.T(q))
         # Q > is total heat transferred into cold stream, and q is local cum.
         func = lambda(q):1./(self.hot.T(q-Q)-self.cold.T(q))
-        return scipy.integrate.quad(func,0,Q)[0]
+        ua = scipy.integrate.quad(func,0,Q)[0]
+        epsilon = Q / self.Qmax
+        if epsilon > 1:
+            raise ValueError("Q given [{}] is higher than Q maximum [{}];"\
+            " effectiveness [{}] > 1.".format(Q,self.Qmax,epsilon))
+        if eff:            
+            return ua, epsilon
+        else:
+            return ua
     def calcQ(self,UA):
         func = lambda(Q):(self.calcUA(Q)-UA)**2
         constraints = [{"type":"ineq",
@@ -166,7 +178,7 @@ class counterflow_integrator(object):
     def calcQmax(self,extra=False,brute=False):
         # Preliminary Max Q based on inlet temperatures only
         qc = min(self.func1(0),self.func2(0))
-        print "qc = ",qc
+        #print "qc = ",qc
         lim = lambda(Q):qc-Q
         constraints = [{"type":"ineq",
                        "fun":lambda(Q):Q,
@@ -177,13 +189,13 @@ class counterflow_integrator(object):
         if brute:
             opt1 = scipy.optimize.differential_evolution(self.func1,[(0,qc)])
             opt2 = scipy.optimize.differential_evolution(self.func2,[(0,qc)])
-            print opt1
-            print opt2
+            #print opt1
+            #print opt2
         else:
             opt1 = scipy.optimize.minimize(self.func1,0,constraints=constraints)
             opt2 = scipy.optimize.minimize(self.func2,0,constraints=constraints)
-            print opt1
-            print opt2
+            #print opt1
+            #print opt2
         self.Qmax = min(np.asscalar(opt1.fun),np.asscalar(opt2.fun))
         #self.Qmax = np.asscalar(opt.x)
         if extra:
@@ -203,7 +215,8 @@ def plotFlow(ci,figure=None,Qactual=None):
             #UA=ci.calcUA(Q)
             UA = 0
             #plt.plot(QQ,Tcold,'b')
-            plt.plot(Q-QQ,Thot1,'.-',label="Q={:.3f},UA={:.3f}".format(Q,UA),color=c)
+            #plt.plot(Q-QQ,Thot1,'.-',label="Q={:.3f},UA={:.3f}".format(Q,UA),color=c)
+            plt.plot(Q-QQ,Thot1,'.-',color=c)
     #plt.legend(loc='best')
     
 def plotNN(ci):    

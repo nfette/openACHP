@@ -166,10 +166,17 @@ def massFraction(T,P,guess=(0.5,)):
     Notes: "above" the mixture: is completely water vapor. So there are only
     two relevant properties to find equilibrium vapor pressure (?).
 
-    Units:
+    Args
+    ----
         T [K]
-        x = mass fraction LiBr
+            Temperature
         P [bar]
+            Pressure
+    
+    Outputs
+    -------
+        x [kg/kg]
+            Mass fraction LiBr
     """
     global soln2
     # Just call a solver on the previously defined pressure function

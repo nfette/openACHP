@@ -12,6 +12,8 @@ from hw2_1 import CelsiusToKelvin as C2K
 from hw2_1 import KelvinToCelsius as K2C
 import tabulate
 import numpy as np
+import scipy.interpolate
+import mesh
 
 from ammonia_props import AmmoniaProps, StateType, State
 
@@ -25,6 +27,56 @@ class stateIterator(object):
         return self
     def next(self):
         return self.chiller.__getattribute__(self.i.next())
+
+class AmmoniaAbsorberStream(object):
+    def __init__(self,weak_inlet,refrig_inlet,m_weak,debug=True):
+        self.weak_inlet = weak_inlet
+        self.refrig_inlet = refrig_inlet
+        self.m_weak = m_weak
+        
+        xmax = self.refrig_inlet.x * (0.5)
+        #x_points = np.linspace(self.weak_inlet.x, xmax)
+        f = np.vectorize(lambda(x):(self._x(x))[0])
+        x,y,i = mesh.mesh1D(f,self.weak_inlet.x, xmax, scipy.interpolate.PchipInterpolator)
+        xnew,ynew = mesh.smooth(f,x,y,i,0.00001,50)
+        x_points = xnew
+        q_points = np.zeros_like(x_points) * np.nan
+        T_points = np.zeros_like(x_points) * np.nan
+        for (i,x) in enumerate(x_points):
+            try:
+                q,t = self._x(x)
+                q_points[i] = q
+                T_points[i] = t
+            except:
+                print "[{}] x = {}: Unable to converge in NH3H2O".format(i,x)
+        self.q = scipy.interpolate.PchipInterpolator(T_points[::-1], q_points[::-1])
+        self.T = scipy.interpolate.PchipInterpolator(q_points[::-1], T_points[::-1])
+        
+        if debug:
+            plt.figure()
+            plt.title("Absorber stream")
+            plt.plot(q_points,T_points,'.')
+            q_range = np.linspace(q_points.min(),q_points.max())
+            T_vals = self.T(q_range)
+            plt.plot(q_range,T_vals,'-')
+            T_range = np.linspace(T_points.min(),T_points.max())
+            q_vals = self.q(T_range)
+            plt.plot(q_vals,T_range,'--')
+            plt.show()
+            
+    def _x(self,x_local):
+        # Determine the refrigerant absorbed and local solution mass flow rate
+        x_weak = self.weak_inlet.x
+        x_refrig = self.refrig_inlet.x
+        x_rich = x_local
+        m_weak = self.m_weak
+        m_rich = m_weak * (x_weak - x_refrig) / (x_rich - x_refrig)
+        m_refrig = m_rich * (x_rich - x_weak) / (x_refrig - x_weak)
+        #print m_refrig,m_rich
+        local_state = amm.props2(P=self.weak_inlet.P,Qu=0,x=x_local)
+        #print local_state
+        Q = m_rich * local_state.h - m_weak * self.weak_inlet.h - m_refrig * self.refrig_inlet.h
+        return Q,local_state.T
 
 class AmmoniaChiller(object):
     def __init__(self):
@@ -47,11 +99,19 @@ refrig cehx vapor outlet
 rectifier_liquid
 gen_vapor_formation
 abs_vapor_final""".replace(" ","_").split('\n')
-        vars = """Q_abs,W
-Q_gen,W
-Q_cond,W
-Q_evap,W
-W_pump,W
+        vars = """Q_abs,kW
+Q_gen,kW
+Q_cond,kW
+Q_evap,kW
+Q_reflux,kW
+W_pump,kW
+COP,kW/kW
+ZeroCheck,kW
+ZeroCheckSHX,kW
+ZeroCheckCEHX,kW
+Q_gen_rect_combo,kW
+Q_refrig_side,kW
+ZeroCheckRect,kg/s
 m_rich,kg/s
 m_weak,kg/s
 m_gen_vapor,kg/s
@@ -84,12 +144,20 @@ m_refrig,kg/s""".split()
         self.Q_gen = 0
         self.Q_cond = 0
         self.Q_evap = 0
+        self.Q_reflux = 0
+        self.COP = 0
+        self.ZeroCheck = 0
         self.W_pump = 0
         self.m_rich = 1
         self.m_weak = 0
         self.m_gen_vapor = 0
         self.m_gen_reflux = 0
         self.m_refrig = 0
+        self.ZeroCheckSHX = 0
+        self.ZeroCheckCEHX = 0
+        self.Q_gen_rect_combo = 0
+        self.Q_refrig_side = 0
+        self.ZeroCheckRect = 0
         
     def stateTable(self):
         ii = range(len(self.points))
@@ -161,35 +229,53 @@ m_refrig,kg/s""".split()
         1. Input inlet temperature.
         2. Determine heat flow and saturation temperature.
         """
+        # Refrigerant cycle step 1:
         self.refrig_evap_outlet, self.refrig_cond_outlet \
             = self.updateRefrig(x_refrig, T_evap, T_cond, Qu_evap)
+        
+        # Refrigerant CEHX:
         self.refrig_cehx_liquid_outlet, \
             self.refrig_cehx_sat_vapor, \
             self.refrig_cehx_vapor_outlet \
             = self.updateCEHX(self.refrig_cond_outlet,
                               self.refrig_evap_outlet,
                               eff_CEHX)
+        
+        # Refrigerant expansion valve:
         self.refrig_exp_outlet \
             = self.updateExpander(self.refrig_cehx_liquid_outlet,
                                   self.refrig_evap_outlet.P)
+        
+        # Absorber step 1:
         self.rich_abs_outlet \
             = self.updateAbsorber1(self.refrig_cehx_vapor_outlet.P,
                                    T_abs_outlet)
+        
+        # Generator step 1:
         self.weak_gen_outlet \
             = self.updateGenerator1(self.refrig_cond_outlet.P,
                                     T_gen_outlet)
+        
+        # Refrigerant cycle step 2:
         self.m_rich = m_rich
         x_weak, x_rich = self.weak_gen_outlet.x, self.rich_abs_outlet.x
         self.m_refrig, self.m_weak = self.updateFlowRates(
             m_rich, x_rich, x_weak, x_refrig)
+        
+        # Pump:
         self.rich_pump_outlet = self.updatePump(self.rich_abs_outlet,
                                                 self.refrig_cond_outlet.P,
                                                 eta_pump)
+        
+        # SHX:
         self.rich_shx_outlet, self.weak_shx_outlet = \
             self.updateSHX(self.rich_pump_outlet, self.weak_gen_outlet,
                            eff_SHX,self.m_rich,self.m_weak)
+        
+        # Solution expansion valve:
         self.weak_exp_outlet = \
             self.updateExpander(self.weak_shx_outlet,self.refrig_evap_outlet.P)
+        
         # Update some saturated states
         self.rich_gen_sat_liquid = amm.props2(x=self.rich_shx_outlet.x,
                                               P=self.rich_shx_outlet.P,
@@ -215,7 +301,45 @@ m_refrig,kg/s""".split()
         self.abs_vapor_final = amm.props2(T=self.weak_exp_outlet.T,
                                           P=self.weak_exp_outlet.P,
                                           Qu=1)
-        #self.Q_abs = self.m_rich * self. self.m_weak * self.weak_exp_outlet
+        
+        self.Q_cond = self.m_refrig * self.refrig_cond_outlet.h \
+            - self.m_refrig * self.refrig_rect_outlet.h
+        self.Q_evap = self.m_refrig * self.refrig_evap_outlet.h \
+            - self.m_refrig * self.refrig_exp_outlet.h
+            
+        self.updateAbsorber2()
+        self.updateGenerator2()
+        
+        self.Q_reflux = self.m_refrig * self.refrig_rect_outlet.h \
+            + self.m_gen_reflux * self.gen_reflux_inlet.h \
+            - self.m_gen_vapor * self.gen_vapor_outlet.h
+        self.W_pump = self.m_rich * self.rich_pump_outlet.h \
+            - self.m_rich * self.rich_abs_outlet.h
+        self.ZeroCheck = self.Q_abs + self.Q_cond + self.Q_gen + self.Q_reflux + self.Q_evap + self.W_pump
+        self.COP = self.Q_evap / self.Q_gen
+        
+        # More debugging
+        self.Q_SHXhot = self.m_weak * self.weak_shx_outlet.h \
+            - self.m_weak * self.weak_gen_outlet.h
+        self.Q_SHXcold = self.m_rich * self.rich_shx_outlet.h \
+            - self.m_rich * self.rich_pump_outlet.h
+        self.ZeroCheckSHX = self.Q_SHXcold + self.Q_SHXhot
+        self.Q_CEHXhot = self.m_refrig * self.refrig_cehx_liquid_outlet.h \
+            - self.m_refrig * self.refrig_cond_outlet.h
+        self.Q_CEHXcold = self.m_refrig * self.refrig_cehx_vapor_outlet.h \
+            - self.m_refrig * self.refrig_evap_outlet.h
+        self.ZeroCheckCEHX = self.Q_CEHXhot + self.Q_CEHXcold
+        
+        self.Q_gen_rect_combo = self.m_refrig * self.refrig_rect_outlet.h \
+            + self.m_weak * self.weak_gen_outlet.h \
+            - self.m_rich * self.rich_shx_outlet.h
+        self.Q_refrig_side = self.m_refrig * self.refrig_rect_outlet.h \
+            - self.m_refrig * self.refrig_cehx_vapor_outlet.h
+        self.ZeroCheckRect = self.m_refrig * x_refrig \
+            + self.m_gen_reflux * x_liquid \
+            - self.m_gen_vapor * x_vapor
+        
+        
     def updateRefrig(self, x_refrig, T_evap, T_cond, Qu_evap):
         evap_outlet = amm.props2(T=T_evap,
                                  x=x_refrig,
@@ -295,13 +419,36 @@ m_refrig,kg/s""".split()
     def updateAbsorber2(self):
         """Absorber step 2:
         1. Input inlet temperature.
-        2. Determine heat flow and saturation temperature."""
+        2. Determine heat flow and saturation temperature.
+        
+        Absorber outlet streams:
+            Ammonia-rich solution to generator via pump and SHX
+        Absorber inlet streams: 
+            Ammonia-weak solution from generator via SHX & expander
+            (Mostly vapor) two-state refrigerant from CEHX
+        """
+        self.Q_abs = self.m_rich * self.rich_abs_outlet.h \
+            - self.m_weak * self.weak_exp_outlet.h \
+            - self.m_refrig * self.refrig_cehx_vapor_outlet.h
     def updateGenerator2(self):
         """Generator step 2:
         1. Input inlet temperature.
-        2. Determine heat flow and saturation temperature."""
+        2. Determine heat flow and saturation temperature.
+        
+        Generator outlet streams:
+            Ammonia-weak solution to absorber via SHX & expander
+            (Almost Ammonia) Generator vapor outlet
+        Generator inlet streams:        
+            Ammonia-rich solution from absorber via pump & SHX
+            Ammonia-rich solution return from rectifier
+        """
+        self.Q_gen = self.m_weak * self.weak_gen_outlet.h \
+            + self.m_gen_vapor * self.gen_vapor_outlet.h \
+            - self.m_rich * self.rich_shx_outlet.h \
+            - self.m_gen_reflux * self.gen_reflux_inlet.h
     def updateRectifier(self, m_refrig, x_refrig, x_vapor, x_liquid):
-        """Return the mass flow rates of vapor and liquid."""
+        """Return the mass flow rates of vapor leaving generator and liquid
+        returning to generator, respectively, at the rectifier interface."""
         # m_refrig = m_vapor - m_liquid
         # m_refrig * x_refrig = m_vapor * x_vapor - m_liquid * x_liquid
         m_vapor = m_refrig * (x_refrig - x_liquid) / (x_vapor - x_liquid)
@@ -332,7 +479,11 @@ m_refrig,kg/s""".split()
             (15,0),
             (15,18),
             (18,6)]
-        
+    def getAbsorberStream(self):
+        return AmmoniaAbsorberStream(self.weak_exp_outlet,self.refrig_cehx_vapor_outlet,self.m_weak)
+    def getGeneratorStream(self):
+        pass
+    
 if __name__ == "__main__":
     a = AmmoniaChiller()
     print a

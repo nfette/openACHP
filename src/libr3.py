@@ -281,22 +281,44 @@ class AbsorberLiBr1(object):
             Process pressure
         m_in : (kg/s)
             Solution inlet mass flow rate
-        T_in : (deg C)
-            Solution inlet temperature        
+        h_in : (J/kg)
+            Solution inlet enthalpy
         x_in : (kg/kg)
             Solution inlet mass fraction LiBr
         T_vapor_inlet : (deg C)
             Vapor inlet temperature
     """
-    def __init__(self,P,m_in,T_in,x_in,T_vapor_inlet,debug=False):
+    def __init__(self,P,m_in,h_in,x_in,h_vapor_inlet,debug=False):
         self.P=P
         self.m_in=m_in
-        self.T_in=T_in
+        self.h_in=h_in
         self.x_in=x_in
-        self.T_vapor_inlet = T_vapor_inlet
-        # TODO
-        self.h_in = libr_props.massSpecificEnthalpy(C2K(T_in),x_in)
-        self.h_vapor_inlet = CP.PropsSI('H','P',P,'T',C2K(T_vapor_inlet),water) - h_w_ref
+        self.h_vapor_inlet = h_vapor_inlet
+        
+        self.T_sat = K2C(libr_props.temperature(self.P * 1e-5,
+                                                          self.x_in))
+        self.h_sat = libr_props.massSpecificEnthalpy(C2K(self.T_sat),self.x_in)
+        
+        if self.h_in > self.h_sat:
+            q,t,xl = libr_props.twoPhaseProps(self.h_in,self.P*1e-5,self.x_in)
+            # Pre-cooling is required to reach saturation temperature
+            self.Q_pre_cool = self.m_in * (self.h_sat - self.h_in)
+            self.T_in = K2C(t)
+            prepoints_h = np.linspace(self.h_in, self.h_sat)
+            prepoints_T = np.zeros_like(prepoints_h)
+            prepoints_q = np.zeros_like(prepoints_h)
+            prepoints_x = np.zeros_like(prepoints_h)
+            for i,h in enumerate(prepoints_h):
+                q,t,xl = libr_props.twoPhaseProps(h,self.P*1e-5,self.x_in)
+                prepoints_T[i] = K2C(t)
+                prepoints_q[i] = self.m_in * (h - self.h_in)
+                prepoints_x[i] = xl
+        else:
+            self.Q_pre_cool = 0
+            self.T_in = K2C(libr_props.temperature(self.P * 1e-5, self.x_in))
+            prepoints_T = []
+            prepoints_q = []
+            prepoints_x = []
         
         # Set up bounds and points for interpolation.
         # Absorber limit is liquid water.
@@ -308,6 +330,10 @@ class AbsorberLiBr1(object):
         #q_points = q_func(T_points)
         for i,x in enumerate(x_points):
             T_points[i],q_points[i] = self._qx(x)
+
+        x_points = np.concatenate([prepoints_x,x_points])
+        T_points = np.concatenate([prepoints_T,T_points])
+        q_points = np.concatenate([prepoints_q,q_points])
         
         # Forward function
         T_points1 = np.resize(T_points,len(T_points)+1)
@@ -337,7 +363,10 @@ class AbsorberLiBr1(object):
         
     def _q(self,T):
         # First, determine the mass fraction here.
-        x_local = libr_props.massFraction(C2K(T),self.P*1e-5)
+        if T > self.T_sat:
+            raise ValueError("This function is for subcooled LiBr...")
+        else:
+            x_local = libr_props.massFraction(C2K(T),self.P*1e-5)
         return self._qx(x_local)
     
     def _qx(self,x_local):
@@ -350,7 +379,7 @@ class AbsorberLiBr1(object):
         m_out = self.m_in + m_vapor
         # Heat is inbound.
         result = -self.m_in * self.h_in - m_vapor * self.h_vapor_inlet \
-            + m_out * h_local
+            + m_out * h_local + self.Q_pre_cool
         return T,result
         
     def __repr__(self):
@@ -360,20 +389,14 @@ class AbsorberLiBr1(object):
         T_in
         T_vapor_inlet
         h_in
-        h_vapor_out
-        Q_preheat
-        Q_desorb
-        Q_total""".split()
+        h_vapor_inlet""".split()
         vals = [self.P,
                 self.m_in,
                 self.x_in,
                 self.T_in,
                 self.T_vapor_inlet,
                 self.h_in,
-                self.h_vapor_out,
-                self.Q_preheat,
-                self.Q_desorb,
-                self.Q_preheat+self.Q_desorb]
+                self.h_vapor_inlet]
         units = """Pa
         kg/kg kg/kg
         C
@@ -461,6 +484,14 @@ evap outlet""".split('\n')
         self.W_pump = 0
         self.f = np.inf
         self.x_abs_pre = self.x2
+    
+    # These routines allow updating solution
+    def setT_evap(self,T_evap):
+        self.T_evap = T_evap
+        self.P_evap = CP.PropsSI('P','T',C2K(T_evap),'Q',1,water)
+    def setT_cond(self,T_cond):
+        self.T_cond = T_cond
+        self.P_cond = CP.PropsSI('P','T',C2K(T_cond),'Q',1,water)
         
     def ZeroCheck(self):
         return self.W_pump + self.Q_evap_heat + self.Q_gen_total - self.Q_condenser_reject - self.Q_abs_total
@@ -590,6 +621,41 @@ evap outlet""".split('\n')
         
         self.COP = self.Q_evap_heat / self.Q_gen_total
     
+    def updateGenerator(self,Q_gen):
+        genStream = self.getGeneratorStream()
+        self.h_gen_inlet = genStream.h_sat
+        self.T_gen_inlet = genStream.T_sat
+        
+        if Q_gen < genStream.Q_preheat:
+            self.T_gen_outlet = genStream.T(Q_gen)
+            self.x2 = self.x1
+            # error?
+        else:
+            self.T_gen_outlet = genStream.T(Q_gen)
+            self.x2 = libr_props.massFraction(C2K(self.T_gen_outlet),
+                                              self.P_cond)
+            genStream.update(self.P_cond, self.m_pump, self.T_gen_pre,
+                             self.x1, self.x2)
+            self.h_gen_outlet = genStream.h_out
+            self.h_gen_vapor_outlet = genStream.h_vapor_out
+        self.dx = self.x1 - self.x2
+        # Mass balance on LiBr
+        self.m_concentrate = self.m_pump * self.x1 / self.x2
+        # Mass balance on Water
+        self.m_refrig = self.m_pump - self.m_concentrate
+        self.f = self.m_pump / self.m_refrig
+            
+    def updateSHX_hot_side(self):
+        DeltaT_max = self.T_gen_outlet - self.T_abs_outlet_max
+        DeltaT_SHX_concentrate = self.Eff_SHX * DeltaT_max
+        self.T_SHX_concentrate_outlet = self.T_gen_outlet \
+            - DeltaT_SHX_concentrate
+        self.h_SHX_concentrate_outlet = libr_props.massSpecificEnthalpy(
+            C2K(self.T_SHX_concentrate_outlet), self.x2)
+        self.Q_SHX = self.m_concentrate \
+            * (self.h_gen_outlet - self.h_SHX_concentrate_outlet)
+        
+        
     def getHeatCurve(self):
         """Returns (Heat,T), arrays showing progress of the process.
         Note: absorber heat input is negative.
@@ -761,9 +827,9 @@ evap outlet""".split('\n')
     def getAbsorberStream(self):
         absorber = AbsorberLiBr1(self.P_evap,
                                  self.m_concentrate,
-                                 self.T_abs_pre,
+                                 self.h_abs_pre,
                                  self.x_abs_pre,
-                                 self.T_evap)
+                                 self.h_evap_outlet)
         return absorber
     
     def getCondenserStream(self):
