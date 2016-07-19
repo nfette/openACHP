@@ -61,6 +61,13 @@ def molarMass(self):
     return 1. / (self.x / molecular_mass_ammonia \
         + (1. - self.x) / molecular_mass_water)
 State.molarMass = molarMass
+def isSubcooled(self):
+    return self.Qu < 0
+def isSuperheated(self):
+    return self.Qu > 1
+State.isSubcooled = isSubcooled
+State.isSuperheated = isSuperheated
+
 dgdxvars = ['dgdx','mu1','mu2']
 State2 = namedtuple('State2',dgdxvars)
 State3 = namedtuple('State3',['dhdx','h1','h2'])    
@@ -176,6 +183,7 @@ class AmmoniaProps:
         #    raise ValueError("Input code not implemented: {}".format(args[0]))
         s,vals = self.mydll.call("",args)
         if s:
+            print(vals)
             raise ValueError(s)    
         
         if out:
@@ -196,7 +204,18 @@ class AmmoniaProps:
         return self.props2(**kwargs).u
     def Qu(self,**kwargs):
         return self.props2(**kwargs).Qu
-        
+    def equilibriumStates(self, P, z):
+        # Return the liquid state at P,z,Qu=0,
+        # and the corresponding vapor state at P,T,Qu=1
+        liquid = self.props2(P=P,x=z,Qu=0)
+        vapor = self.props2(P=P,T=liquid.T,Qu=1)
+        return liquid,vapor
+    def equilibriumStates2(self, P, z_vapor):
+        # Return the vapor state at P,z_vapor,Qu=0,
+        # and the corresponding liquid state at P,T,Qu=0
+        vapor = self.props2(P=P,x=z_vapor,Qu=1)
+        liquid = self.props2(P=P,T=vapor.T,Qu=0)
+        return liquid,vapor
 
 if __name__ == "__main__":
     myprops = AmmoniaProps(defaultPath)

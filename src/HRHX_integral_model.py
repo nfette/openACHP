@@ -6,6 +6,7 @@ Created on Wed May 25 19:54:52 2016
 """
 import scipy.integrate
 import scipy.optimize
+import scipy.interpolate
 import matplotlib.pyplot as plt
 import numpy as np
 from hw2_1 import CelsiusToKelvin as C2K, KelvinToCelsius as K2C
@@ -136,6 +137,43 @@ class waterStream(object):
         
         h_out = q / self.mdot + self.h_in
         return K2C(PropsSI('T','P',self.P,'H',h_out,self.fluid))
+
+class aquaStream(object):
+    """A class for ammonia water mixture stream, using a fixed library."""
+    def __init__(self,inlet,mdot):
+        import ammonia_props
+        amm = ammonia_props.AmmoniaProps()
+        
+        self.inlet = inlet
+        self.mdot = mdot
+        
+        liquid = amm.props2(P = inlet.P, x = inlet.x, Qu = 0)
+        vapor = amm.props2(P = inlet.P, x = inlet.x, Qu = 1)
+        if liquid.T == vapor.T:
+            pass
+            #q,T = self._q, self.T
+        # Determine what enthalpy to give at saturation temperature, since
+        # at saturation temperature, rounding depends whether
+        # the user intends heating or cooling.
+        if inlet.h < liquid.h:
+            self.h_sat = liquid.h
+        elif inlet.h > vapor.h:
+            self.h_sat = vapor.h
+        else:
+            self.h_sat = inlet.h
+        
+        Tmin,Tmax = 200,400
+        minstate = amm.props2(P = inlet.P, x = inlet.x, T = Tmin)
+        maxstate = amm.props2(P = inlet.P, x = inlet.x, T = Tmax)
+        h_min,h_max = minstate.h, maxstate.h
+        q_points = []
+        T_points = []
+        for h in np.linspace(h_min, h_max):
+            q_points.append(mdot * (h - inlet.h))
+            state = amm.props2(P = inlet.P, x = inlet.x, h = h)
+            T_points.append(state.T)
+        self.q = scipy.interpolate.PchipInterpolator(T_points, q_points)
+        self.T = scipy.interpolate.PchipInterpolator(q_points, T_points)
 
 class counterflow_integrator(object):
     """Change in progress:

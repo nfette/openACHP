@@ -14,6 +14,8 @@ import tabulate
 import numpy as np
 import scipy.interpolate
 import mesh
+import exceptions
+import HRHX_integral_model
 
 from ammonia_props import AmmoniaProps, StateType, State
 
@@ -29,54 +31,293 @@ class stateIterator(object):
         return self.chiller.__getattribute__(self.i.next())
 
 class AmmoniaAbsorberStream(object):
-    def __init__(self,weak_inlet,refrig_inlet,m_weak,debug=True):
+    """TODO: Account for non-saturated solution inlet."""
+    def __init__(self,weak_inlet,refrig_inlet,m_weak,debug=False):
         self.weak_inlet = weak_inlet
         self.refrig_inlet = refrig_inlet
         self.m_weak = m_weak
         
+        T_points = []
+        q_points = []
+        x_points = []
+        self.q_pre = 0
+        
+        if weak_inlet.isSubcooled():
+            # If so, then any absorption prior to saturation does not require
+            # heat transfer to proceed. By design, this should probably not
+            # happen; instead, expand to lower pressure until saturation is
+            # reached. Anyway, we should calculate the saturated state where
+            # heat transfer starts. Assume:
+            #   1. Pre-saturation absorption is at constant temperature.
+            self.sat_inlet = amm.props2(T=weak_inlet.T,P=weak_inlet.P,Qu=0)
+            x_sat = self.sat_inlet.x
+            # m_sat - m_refrig = m_weak
+            # x_sat m_sat - m_refrig x_refrig = m_weak x_weak
+            self.m_sat = m_weak * (weak_inlet.x - refrig_inlet.x) / (x_sat - refrig_inlet.x)
+            m_refrig = m_weak * (weak_inlet.x - x_sat) / (x_sat - refrig_inlet.x)
+            
+        elif weak_inlet.Qu > 0:
+            # Inlet is already a (super)saturated state. However, there may be
+            # some vapor at the inlet. So, we should cool the thing down.
+            self.sat_inlet = amm.props2(P=weak_inlet.P,Qu=0,x=weak_inlet.x)
+            self.m_sat = m_weak
+            if weak_inlet.isSuperheated():
+                # If so, then the fluid must be further cooled to saturation
+                # temperature before any vapor can be absorbed. This should not
+                # have happened, by design! Assume:
+                #   1. We must cool to saturated vapor.
+                vapor = amm.props2(P=weak_inlet.P,Qu=1,x=weak_inlet.x)            
+                
+                prepoints_h = np.linspace(weak_inlet.h,vapor.h, 10)
+                for i,h in enumerate(prepoints_h):
+                    state = amm.props2(P=weak_inlet.P,x=weak_inlet.x,h=h)
+                    T_points.append(state.T)
+                    q = m_weak * (state.h - weak_inlet.h)
+                    q_points.append(q)
+                    x_points.append(state.x)
+            else:
+                vapor = weak_inlet
+                
+            # 2. Then cool to saturated liquid.
+            for i,Qu in enumerate(np.linspace(vapor.Qu,0, 10)):
+                state = amm.props2(P=weak_inlet.P,x=weak_inlet.x,Qu=Qu)
+                T_points.append(state.T)
+                q = m_weak * (state.h - weak_inlet.h)
+                q_points.append(q)
+                x_points.append(weak_inlet.x)
+            self.q_pre = q
+                
+        else:
+            self.sat_inlet = weak_inlet
+            self.m_sat = m_weak
+        
+        # Now we continue from the saturated liquid inlet towards the refrigerant.
         xmax = self.refrig_inlet.x * (0.5)
-        #x_points = np.linspace(self.weak_inlet.x, xmax)
-        f = np.vectorize(lambda(x):(self._x(x))[0])
-        x,y,i = mesh.mesh1D(f,self.weak_inlet.x, xmax, scipy.interpolate.PchipInterpolator)
-        xnew,ynew = mesh.smooth(f,x,y,i,0.00001,50)
-        x_points = xnew
-        q_points = np.zeros_like(x_points) * np.nan
-        T_points = np.zeros_like(x_points) * np.nan
-        for (i,x) in enumerate(x_points):
+        for (i,x) in enumerate(np.linspace(self.sat_inlet.x, xmax)):
             try:
                 q,t = self._x(x)
-                q_points[i] = q
-                T_points[i] = t
+                q_points.append(q)
+                T_points.append(t)
             except:
                 print "[{}] x = {}: Unable to converge in NH3H2O".format(i,x)
+                break
         self.q = scipy.interpolate.PchipInterpolator(T_points[::-1], q_points[::-1])
         self.T = scipy.interpolate.PchipInterpolator(q_points[::-1], T_points[::-1])
         
         if debug:
+            import matplotlib.pyplot as plt
             plt.figure()
-            plt.title("Absorber stream")
+            plt.title("Absorber stream, inlet Qu = {}".format(weak_inlet.Qu))
+            plt.plot(0,weak_inlet.T,'o')
             plt.plot(q_points,T_points,'.')
-            q_range = np.linspace(q_points.min(),q_points.max())
+            q_range = np.linspace(min(q_points),max(q_points))
             T_vals = self.T(q_range)
             plt.plot(q_range,T_vals,'-')
-            T_range = np.linspace(T_points.min(),T_points.max())
+            T_range = np.linspace(min(T_points),max(T_points))
             q_vals = self.q(T_range)
             plt.plot(q_vals,T_range,'--')
             plt.show()
-            
+    
     def _x(self,x_local):
         # Determine the refrigerant absorbed and local solution mass flow rate
-        x_weak = self.weak_inlet.x
+        x_weak = self.sat_inlet.x
         x_refrig = self.refrig_inlet.x
         x_rich = x_local
-        m_weak = self.m_weak
+        m_weak = self.m_sat
         m_rich = m_weak * (x_weak - x_refrig) / (x_rich - x_refrig)
-        m_refrig = m_rich * (x_rich - x_weak) / (x_refrig - x_weak)
-        #print m_refrig,m_rich
+        m_refrig = m_weak * (x_weak - x_rich) / (x_rich - x_refrig) 
+        
         local_state = amm.props2(P=self.weak_inlet.P,Qu=0,x=x_local)
         #print local_state
-        Q = m_rich * local_state.h - m_weak * self.weak_inlet.h - m_refrig * self.refrig_inlet.h
+        Q = self.q_pre + m_rich * local_state.h - m_weak * self.sat_inlet.h - m_refrig * self.refrig_inlet.h
+        #print m_refrig,m_rich,Q,local_state.T
         return Q,local_state.T
+
+class AmmoniaGeneratorStream(object):
+    """TODO: Account for non-saturated solution inlet.
+        
+    Inputs
+    ------
+    rich_inlet: ammonia_props.State
+        The fluid state at the rich inlet.
+    m_rich: number (kg/s)
+        Inbound mass flow rate at the rich solution inlet.
+    reflux_inlet: ammonia_props.State
+        The fluid state at the liquid reflux inlet.
+    m_reflux: number (kg/s)
+        Inbound mass flow rate at the liquid reflux inlet.
+    vapor_outlet: ammonia_props.State
+        Fluid state at the vapor outlet.
+    m_vapor: number (kg/s)
+        Assumed outbound mass flow rate at the vapor outlet.
+    """
+    def __init__(self,rich_inlet,m_rich,reflux_inlet,m_reflux,vapor_outlet,m_vapor,debug=False):
+        
+        self.rich_inlet = rich_inlet
+        self.m_rich = m_rich
+        self.reflux_inlet = reflux_inlet
+        self.m_reflux = m_reflux
+        self.vapor_outlet = vapor_outlet
+        self.m_vapor = m_vapor
+        # Weak solution outlet is known...
+        self.m_net = self.m_rich + self.m_reflux - self.m_vapor
+        m_ammonia_net = self.rich_inlet.x * self.m_rich \
+            + self.reflux_inlet.x * self.m_reflux \
+            - self.vapor_outlet.x * self.m_vapor
+        self.x_net = m_ammonia_net / self.m_net
+            
+        T_points = []
+        q_points = []
+        x_points = []
+        self.q_pre = 0
+        
+        if self.rich_inlet.isSubcooled():
+            # Need to heat it up.
+            liquid,vapor = amm.equilibriumStates(self.rich_inlet.P,rich_inlet.x)
+            for h in np.linspace(rich_inlet.h, liquid.h, 10, endpoint=False):
+                state = amm.props2(P=rich_inlet.P,x=rich_inlet.x,h=h)
+                q = m_rich * (h - rich_inlet.h)
+                q_points.append(q)
+                T_points.append(state.T)
+                x_points.append(state.x)
+            self.q_pre = q
+            self.sat_inlet = liquid
+            self.m_sat = m_rich
+            self.m_desorb = m_vapor
+            
+        elif self.rich_inlet.isSuperheated():
+            # By design, this should not happen! Just use a rectifier.
+            raise exceptions.ValueError("Generator inlet was superheated.")
+        else:
+            # Already have some vapor, so we can separate it.
+            # It will go into the rectifier. Assume:
+            #   1. This flash vapor contributes to the specified outbound rate.
+            liquid,vapor = amm.equilibriumStates(self.rich_inlet.P,rich_inlet.x)
+            self.m_sat = m_rich * (1 - self.rich_inlet.Qu)
+            self.sat_inlet = liquid
+            self.m_desorb = m_vapor - m_rich * self.rich_inlet.Qu
+            self.q_pre = 0            
+        
+        for (i,x) in enumerate(np.linspace(self.sat_inlet.x, 0.1)):
+            #try:
+            q,t = self._x(x)
+            q_points.append(q)
+            T_points.append(t)
+            x_points.append(x)
+            #except exceptions.StandardError as e:
+            #    print "[{}] x = {}: Unable to converge in NH3H2O".format(i,x)
+            #    print e
+            #    break
+        
+        self.q = scipy.interpolate.PchipInterpolator(T_points, q_points)
+        self.T = scipy.interpolate.PchipInterpolator(q_points, T_points)
+        
+        if debug:
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.title("Generator stream, inlet Qu = {}".format(rich_inlet.Qu))
+            plt.plot(self.q_pre, self.sat_inlet.T, 'o')
+            plt.plot(q_points,T_points,'.')
+            q_range = np.linspace(min(q_points),max(q_points))
+            T_vals = self.T(q_range)
+            plt.plot(q_range,T_vals,'-')
+            T_range = np.linspace(min(T_points),max(T_points))
+            q_vals = self.q(T_range)
+            plt.plot(q_vals,T_range,'--')
+            plt.show()
+            print tabulate.tabulate(zip(q_points,T_points,x_points),
+                "q T x".split())
+            print np.diff(T_points) < 0
+            
+    def _x(self,z_local):
+        # Input z_local is the ammonia mass fraction in the liquid phase.
+        liquid,vapor = amm.equilibriumStates(self.rich_inlet.P,z_local)
+        # Determine the amount of refrigerant vaporized and local states.
+        x_net = self.x_net
+        m_net = self.m_net
+        x_liquid = z_local
+        x_vapor = vapor.x
+        
+        m_liquid = m_net * (x_net - x_vapor) / (x_liquid - x_vapor)
+        m_vapor = m_net * (x_net - x_liquid) / (x_liquid - x_vapor) 
+        
+        Q = m_liquid * liquid.h - m_vapor * vapor.h \
+            - self.m_rich * self.rich_inlet.h \
+            - self.m_reflux * self.reflux_inlet.h \
+            + self.m_vapor * self.vapor_outlet.h
+        
+        return Q,liquid.T
+
+class AmmoniaRefluxStream(object):
+    """A class to provide heat curves for the reflux coil.
+    
+    The model assumes internal vapor-liquid equilibrium and counterflow,
+    and is therefore nearly identical to generator model, except that the
+    generator has additional ports.
+    
+    For sign convention to work, we have to use the bottom of the rectifier
+    (liquid outlet, vapor inlet) as the stream inlet where Q=0, since Q < 0
+    as the process proceeds and T_top < T_bottom. Thus, since we would have to
+    completely specify the process anyway, we might as well input the conditions
+    at this point in the process. Driving the reaction past the point
+    where liquid flow rate is zero might be a bad idea.
+    
+    Inputs
+    ------
+    vapor_inlet: ammonia_props.State
+        The fluid state at the (medium ammonia) vapor inlet.
+    m_inlet: number (kg/s)
+        Inbound mass flow rate at the (medium ammonia) vapor inlet.
+    liquid_outlet: ammonia_props.State
+        The fluid state at the liquid reflux (low ammonia) outlet.
+    m_reflux: number (kg/s)
+        Outbound mass flow rate at the liquid reflux outlet.
+    """
+    def __init__(self,vapor_inlet,m_inlet,liquid_outlet,m_reflux,debug=False):
+        self.vapor_inlet = vapor_inlet
+        self.m_inlet = m_inlet
+        self.liquid_outlet = liquid_outlet
+        self.m_reflux = m_reflux
+        
+        # Determine net flow rate and net ammonia fraction
+        self.m_net = self.m_inlet - self.m_reflux
+        self.ammonia_net = m_inlet * vapor_inlet.x - m_reflux * liquid_outlet.x
+        self.x_net = self.ammonia_net / self.m_net
+        
+        q_points, T_points = [], []
+        for z in np.linspace(self.x_net, vapor_inlet.x):
+            q,T = self._x(z)
+            q_points.append(q)
+            T_points.append(T)
+        self.q = scipy.interpolate.PchipInterpolator(T_points, q_points)
+        self.T = scipy.interpolate.PchipInterpolator(q_points, T_points)
+        
+        if debug:
+            print "Rectifier"
+            print "vapor_inlet = ", self.vapor_inlet
+            print "liquid_outliet = ", self.liquid_outlet
+            print "m_net, x_net = ", self.m_net, self.x_net
+            print tabulate.tabulate(zip(q_points,T_points),["q / kW"," T / K"])
+        
+    def _x(self,z_local):
+        # Input z_local is the ammonia mass fraction in the liquid phase.
+        liquid,vapor = amm.equilibriumStates2(self.vapor_inlet.P,z_local)
+        #print liquid, vapor
+        # Determine the amount of refrigerant vaporized and local states.
+        x_net = self.x_net
+        m_net = self.m_net
+        x_vapor = z_local
+        x_liquid = liquid.x
+        
+        m_liquid = m_net * (x_vapor - x_net) / (x_liquid - x_vapor)
+        m_vapor = m_net * (x_liquid - x_net) / (x_liquid - x_vapor) 
+        
+        Q = m_vapor * vapor.h - m_liquid * liquid.h \
+            + self.m_reflux * self.liquid_outlet.h \
+            - self.m_inlet * self.vapor_inlet.h
+        
+        return Q,liquid.T
+        
 
 class AmmoniaChiller(object):
     def __init__(self):
@@ -192,7 +433,7 @@ m_refrig,kg/s""".split()
                T_gen_outlet=101+273.15,
                m_rich=0.40,
                eta_pump = 0.8,
-               eff_SHX=0.85,
+               eff_SHX=0.7,
                T_rect = 40.5 + 273.15):
         """Solves the cycle.
         
@@ -482,12 +723,64 @@ m_refrig,kg/s""".split()
     def getAbsorberStream(self):
         return AmmoniaAbsorberStream(self.weak_exp_outlet,self.refrig_cehx_vapor_outlet,self.m_weak)
     def getGeneratorStream(self):
-        pass
-    
+        return AmmoniaGeneratorStream(self.rich_shx_outlet,self.m_rich,
+                                      self.gen_reflux_inlet,self.m_gen_reflux,
+                                      self.gen_vapor_outlet,self.m_gen_vapor)
+    def getEvaporatorStream(self):
+        return HRHX_integral_model.aquaStream(self.refrig_exp_outlet,
+                                              self.m_refrig)
+    def getCondenserStream(self):
+        return HRHX_integral_model.aquaStream(self.refrig_rect_outlet,
+                                              self.m_refrig)
+    def getRectifierStream(self):
+        return AmmoniaRefluxStream(self.gen_vapor_outlet,self.m_gen_vapor,
+                                   self.gen_reflux_inlet,self.m_gen_reflux)
+    def getSHX(self):
+        hot = HRHX_integral_model.aquaStream(self.weak_gen_outlet,self.m_weak)
+        cold = HRHX_integral_model.aquaStream(self.rich_pump_outlet,self.m_rich)
+        return HRHX_integral_model.counterflow_integrator(cold,hot)
+    def getCEHX(self):
+        hot = HRHX_integral_model.aquaStream(self.refrig_cond_outlet,self.m_refrig)
+        cold = HRHX_integral_model.aquaStream(self.refrig_evap_outlet,self.m_refrig)
+        return HRHX_integral_model.counterflow_integrator(cold,hot)
+    def display(a):
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.title("Internal streams")
+        absorber = a.getAbsorberStream()
+        plotStream(absorber,(1.05*a.Q_abs,0),(a.weak_exp_outlet.T,a.rich_abs_outlet.T))
+        gen = a.getGeneratorStream()
+        plotStream(gen,(0,1.05*a.Q_gen),(a.rich_shx_outlet.T,a.weak_gen_outlet.T))
+        evap = a.getEvaporatorStream()
+        plotStream(evap,(0,1.05*a.Q_evap),(a.refrig_exp_outlet.T,a.refrig_evap_outlet.T))
+        cond = a.getCondenserStream()
+        plotStream(cond,(1.05*a.Q_cond,0),(a.refrig_rect_outlet.T,a.refrig_cond_outlet.T))
+        rect = a.getRectifierStream()
+        plotStream(rect, (1.05*a.Q_reflux,0), (a.refrig_rect_outlet.T,a.gen_vapor_outlet.T))
+        
+        # Internal streams
+        shx = a.getSHX()
+        HRHX_integral_model.plotFlow(shx,Qactual=a.Q_SHXcold)
+        plt.title("SHX")
+        cehx = a.getCEHX()
+        HRHX_integral_model.plotFlow(cehx,Qactual=a.Q_CEHXcold)
+        plt.title("CEHX")
+
+def plotStream(stream, qrange, Trange):
+    # First let's plot T(q)
+    q1 = np.linspace(*qrange)
+    T1 = stream.T(q1)
+    l=plt.plot(q1,T1,'-')[0]
+    T2 = np.linspace(*Trange)
+    q2 = stream.q(T2)
+    plt.plot(q2,T2,'.',color=l.get_c())
+
 if __name__ == "__main__":
     a = AmmoniaChiller()
     print a
     a.update()
     print a
-
+    a.display()
+    
+    
         

@@ -273,19 +273,21 @@ class GeneratorLiBrInterpolated(GeneratorLiBr):
         
 class AbsorberLiBr1(object):
     """Provides a canonical heat (output) curve for a LiBr water vapor absorber.
+    
     Assumes:
         Vapor comes into equilibrium with surface only where it is absorbed.
     
-    Inputs:
-        P : (Pa)
+    Inputs
+    ------
+        P : number (Pa)
             Process pressure
-        m_in : (kg/s)
+        m_in : number (kg/s)
             Solution inlet mass flow rate
-        h_in : (J/kg)
+        h_in : number (J/kg)
             Solution inlet enthalpy
-        x_in : (kg/kg)
+        x_in : number (kg/kg)
             Solution inlet mass fraction LiBr
-        T_vapor_inlet : (deg C)
+        T_vapor_inlet : number (deg C)
             Vapor inlet temperature
     """
     def __init__(self,P,m_in,h_in,x_in,h_vapor_inlet,debug=False):
