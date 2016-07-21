@@ -240,6 +240,33 @@ class counterflow_integrator(object):
             return opt1
         else:
             return self.Qmax
+            
+    def calcDistanceT(self, Q):
+        """Returns DeltaT, the least temperature difference between hot and cold streams,
+        given the actual heat flow between them. This serves as like metric for
+        separation.
+        
+        DeltaT = inf(T_hot - T_cold)
+        
+        DeltaT > 0: Normal conditions
+        DeltaT = 0: Pinch point is touching
+        DeltaT < 0: The given Q has exceeded Qmax
+        """
+        f = lambda(q):self.hot.T(q-Q)-self.cold.T(q)
+        opt=scipy.optimize.minimize(f,0,bounds=[(0,Q)])
+        #print opt
+        return opt.fun[0]
+    
+    def calcUA2(self,Q):
+        DeltaT = self.calcDistanceT(Q)
+        epsilon = Q / self.Qmax
+        if DeltaT <= 0 or epsilon >= 1:
+            UA = 10e3
+        else:
+            func = lambda(q):1./(self.hot.T(q-Q)-self.cold.T(q))
+            UA = scipy.integrate.quad(func,0,Q)[0]
+        return DeltaT,epsilon,UA
+        
 
 def plotFlow(ci,figure=None,Qactual=None):
     QQ = np.linspace(0,ci.Qmax)
@@ -258,13 +285,20 @@ def plotFlow(ci,figure=None,Qactual=None):
     #plt.legend(loc='best')
     
 def plotNN(ci):    
-    NNs = np.arange(1,10)
+    NNs = np.arange(0,10)
     QQ = ci.Qmax * (1 - np.exp(-NNs))
     UA = map(ci.calcUA,QQ)
+    DeltaT = map(ci.calcDistanceT,QQ)
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+    ax1.plot(UA,QQ,'ko-')
+    ax1.set_xscale('log')
+    ax1.set_xlabel("UA")
+    ax1.set_ylabel("Q")
+    ax2.plot(UA,DeltaT)
+    ax2.set_ylabel("DeltaT")
     plt.figure()
-    plt.plot(UA,QQ,'ko-')
-    plt.xlabel("UA")
-    plt.ylabel("Q")
+    plt.plot(QQ,DeltaT,"o-")
 
 if __name__ == "__main__":
     if True:
