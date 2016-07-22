@@ -80,6 +80,8 @@ Cooler
             plotStream(stream,(-0.1 * Q,1.1*Q))
 
 class CarnotSystem(object):
+    names = ["Boiler","Power condenser","Cooler condenser","Evaporator"]
+        
     def __init__(self, carnot_pair, hot_stream, reject_power_stream,
                  reject_cooler_stream, cold_stream):
         self.carnot_pair = carnot_pair
@@ -100,8 +102,7 @@ class CarnotSystem(object):
         self.HXs = [self.hotHX, self.engRejHX, self.coolRejHX, self.coldHX]
         self.QQ = [self.carnot_pair.ce.Q_hot, -self.carnot_pair.ce.Q_cold,
               -self.carnot_pair.cc.Q_hot, self.carnot_pair.cc.Q_cold]
-        self.names = ["Boiler","Power condenser","Cooler condenser","Evaporator"]
-            
+                    
     def calcUA(self,output=False):
         UAs = []
         for HX, Q, name in zip(self.HXs, self.QQ, self.names):
@@ -150,8 +151,10 @@ class CarnotSystem(object):
             Eff.append(eff)
             UA.append(ua)
             
-            #plt.figure()
-            #HRHX_integral_model.plotFlow(HX,None,Q)
+            if plot:
+                plt.figure()
+                HRHX_integral_model.plotFlow(HX,None,Q)
+                plt.title(name)
         if plot:
             n = len(self.names)
             plt.figure()
@@ -221,7 +224,7 @@ class problem(object):
         self.DeltaT,self.y,self.UA = main(x0,collapse=False)
         self.UA0 = self.cost()
         self.constraints = []
-        for i in range(5):
+        for i in range(6):
             self.constraints.append(dict(type="ineq",
                                          fun=lambda(x):self.evalConstraints(x)[i]))
         self.i=1
@@ -238,7 +241,7 @@ class problem(object):
     def cost(self):
         return sum(self.UA)
     def evalConstraints(self,x):
-        print self.i, " Constraints at x = ", x
+        #print self.i, " Constraints at x = ", x
         self.i+=1
         self.calls.append(1)
         self.x.append(x)
@@ -248,7 +251,7 @@ class problem(object):
         result.append(x[4]-0.1)
         for i in range(4):
             result.append(self.DeltaT[i]-0.1)
-        #result.append(self.UA0 - self.cost())
+        result.append(self.UA0 - self.cost())
         
         return result
         
@@ -265,10 +268,11 @@ class problem(object):
 if __name__ == "__main__":
     x0=np.array((400.,320.,320.,275.,1.))
     
-    DeltaT,objective,UAs=main(x0,text=True,plot=True,collapse=False)
-    print "DeltaT =", DeltaT
-    print "objective = {} kW".format(objective)
-    print "UAs = {}".format(UAs)    
+    DeltaT0,y0,UA0=main(x0,text=True,plot=True,collapse=False)
+    print "DeltaT =", DeltaT0
+    print "objective = {} kW".format(y0)
+    print "UAs = {}, sum = {}".format(UA0,sum(UA0))
+    
     if False:
         j = jacobian(main,x0,[False,False])
         print j
@@ -295,4 +299,14 @@ if __name__ == "__main__":
     p=problem(x0)
     print
     opt=p.minimize()
+    x1 = opt.x
+    
+    DeltaT1,y1,UA1=main(x1,text=True,plot=True,collapse=False)
+    print "DeltaT =", DeltaT1
+    print "y = {} kW".format(y1)
+    print "UA = {}, sum = {}".format(UA1,sum(UA1))
+    
+    plt.figure()
+    plt.bar(np.arange(4),UA0,0.3,tick_label=CarnotSystem.names)
+    plt.bar(np.arange(4)+0.3,UA1,0.3,color="red")
         
