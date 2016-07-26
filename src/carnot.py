@@ -151,11 +151,11 @@ class CarnotSystem(object):
             Eff.append(eff)
             UA.append(ua)
             
-            if plot:
+            if plot & 2:
                 plt.figure()
                 HRHX_integral_model.plotFlow(HX,None,Q)
                 plt.title(name)
-        if plot:
+        if plot & 1:
             n = len(self.names)
             plt.figure()
             plt.subplot(3,1,1)
@@ -218,11 +218,15 @@ def jacobian(f,x0,args=[],epsilon=0.001):
     return result
 
 class problem(object):
-    def __init__(self,x0):
+    def __init__(self,x0,UAmax=None):
         self.calls=[0]
         self.x = [x0]
         self.DeltaT,self.y,self.UA = main(x0,collapse=False)
         self.UA0 = self.cost()
+        if UAmax:
+            self.UAmax = UAmax
+        else:
+            self.UAmax = self.UA0
         self.constraints = []
         for i in range(6):
             self.constraints.append(dict(type="ineq",
@@ -250,8 +254,8 @@ class problem(object):
         result = []
         result.append(x[4]-0.1)
         for i in range(4):
-            result.append(self.DeltaT[i]-0.1)
-        result.append(self.UA0 - self.cost())
+            result.append(self.DeltaT[i]-0.01)
+        result.append(self.UAmax - self.cost())
         
         return result
         
@@ -260,7 +264,7 @@ class problem(object):
         opt = scipy.optimize.minimize(self.objective,
                                     self.x[-1],
                                     constraints=self.constraints,
-                                    options={"maxiter":100,"disp":True},
+                                    options={"maxiter":300,"disp":True},
                                     method="COBYLA")
                                     #bounds=[(250,None)]*4+[(0.1,2)])
         return opt
@@ -309,4 +313,20 @@ if __name__ == "__main__":
     plt.figure()
     plt.bar(np.arange(4),UA0,0.3,tick_label=CarnotSystem.names)
     plt.bar(np.arange(4)+0.3,UA1,0.3,color="red")
+    plt.ylabel("UA value (kW/K)")
+    plt.savefig("../img/carnot_fig.png")
+    plt.show()
+    
+    opts = []
+    for UA in np.logspace(1,3,10):
+        print "Optimizing UA = {}".format(UA)        
+        p2=problem(x1,UA)
+        opt2=p2.minimize()
+        print opt2
+        opts.append((UA,p2,opt2))
+        
+    for UA,p2,opt2 in opts:
+        print UA
+        print opt2.message
+        main(opt2.x,text=True,plot=1)
         

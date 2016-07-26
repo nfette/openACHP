@@ -253,9 +253,9 @@ class counterflow_integrator(object):
         DeltaT < 0: The given Q has exceeded Qmax
         """
         f = lambda(q):self.hot.T(q-Q)-self.cold.T(q)
-        opt=scipy.optimize.minimize(f,0,bounds=[(0,Q)])
+        opt=scipy.optimize.minimize_scalar(f,bounds=(0,Q))
         #print opt
-        return opt.fun[0]
+        return opt.fun
     
     def calcUA2(self,Q):
         DeltaT = self.calcDistanceT(Q)
@@ -275,7 +275,12 @@ def plotFlow(ci,figure=None,Qactual=None):
     if not figure:
         plt.figure()
     plt.plot(QQ,Tcold,'b.-',label="cold")
-    for Q,c in zip([0., ci.Qmax * 0.5,ci.Qmax * 0.99,Qactual],['red','orange','yellow','black']):
+    plt.grid(True)
+    if Qactual is None:
+        Qset = [0., ci.Qmax * 0.5,ci.Qmax * 0.99]
+    else:
+        Qset = [Qactual]
+    for Q,c in zip(Qset,['red','orange','yellow','black']):
         if Q is not None:
             #UA=ci.calcUA(Q)
             UA = 0
