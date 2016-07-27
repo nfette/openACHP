@@ -7,7 +7,7 @@ Created on Wed May 25 19:54:52 2016
 import scipy.integrate
 import scipy.optimize
 import scipy.interpolate
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import numpy as np
 from hw2_1 import CelsiusToKelvin as C2K, KelvinToCelsius as K2C
 from exceptions import ValueError
@@ -137,6 +137,30 @@ class waterStream(object):
         
         h_out = q / self.mdot + self.h_in
         return K2C(PropsSI('T','P',self.P,'H',h_out,self.fluid))
+        
+class waterStreamInterpolated(object):
+    """A class for phase change of a given fluid. The specific heats of
+    saturated water liquid and vapor at equilibrium are different,
+    so the streamExample2 is insufficient to represent this case."""
+    def __init__(self,P,h_in,mdot,Q_design,fluid='water'):
+        ws = waterStream(P,h_in,mdot,fluid)
+        q_points1 = np.linspace(0,Q_design*1.1)
+        T_points1 = ws.T(q_points1)
+
+        # This may not work well
+        T0,T1 = T_points1[0],T_points1[-1]
+        if T0 == T1:
+            T1 = T0 + 5. * np.sign(Q_design)
+        T_points2 = np.linspace(T0,T1)
+        q_points2 = ws.q(T_points2)
+        
+        if Q_design > 0:
+            self.T = scipy.interpolate.PchipInterpolator(q_points1,T_points1)
+            self.q = scipy.interpolate.PchipInterpolator(T_points2,q_points2)
+        else:
+            self.T = scipy.interpolate.PchipInterpolator(q_points1[::-1],T_points1[::-1])
+            self.q = scipy.interpolate.PchipInterpolator(T_points2[::-1],q_points2[::-1])
+        
 
 class aquaStream(object):
     """A class for ammonia water mixture stream, using a fixed library."""
@@ -253,7 +277,7 @@ class counterflow_integrator(object):
         DeltaT < 0: The given Q has exceeded Qmax
         """
         f = lambda(q):self.hot.T(q-Q)-self.cold.T(q)
-        opt=scipy.optimize.minimize_scalar(f,bounds=(0,Q))
+        opt=scipy.optimize.minimize_scalar(f,bounds=(0,Q),method="bounded")
         #print opt
         return opt.fun
     
@@ -261,7 +285,7 @@ class counterflow_integrator(object):
         DeltaT = self.calcDistanceT(Q)
         epsilon = Q / self.Qmax
         if DeltaT <= 0 or epsilon >= 1:
-            UA = 10e3
+            UA = np.inf
         else:
             func = lambda(q):1./(self.hot.T(q-Q)-self.cold.T(q))
             UA = scipy.integrate.quad(func,0,Q)[0]
@@ -269,6 +293,7 @@ class counterflow_integrator(object):
         
 
 def plotFlow(ci,figure=None,Qactual=None):
+    import matplotlib.pyplot as plt
     QQ = np.linspace(0,ci.Qmax)
     Tcold = ci.cold.T(QQ)
     Thot1 = ci.hot.T(-QQ)
@@ -288,8 +313,10 @@ def plotFlow(ci,figure=None,Qactual=None):
             #plt.plot(Q-QQ,Thot1,'.-',label="Q={:.3f},UA={:.3f}".format(Q,UA),color=c)
             plt.plot(Q-QQ,Thot1,'.-',color=c)
     #plt.legend(loc='best')
+    return plt.gcf()
     
-def plotNN(ci):    
+def plotNN(ci):
+    import matplotlib.pyplot as plt
     NNs = np.arange(0,10)
     QQ = ci.Qmax * (1 - np.exp(-NNs))
     UA = map(ci.calcUA,QQ)
@@ -306,6 +333,7 @@ def plotNN(ci):
     plt.plot(QQ,DeltaT,"o-")
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
     if True:
         cold = streamExample1(0)
         hot = streamExample1(1,1)

@@ -316,7 +316,7 @@ if __name__ == "__main__":
     plt.ylabel("UA value (kW/K)")
     plt.savefig("../img/carnot_fig.png")
     plt.show()
-    
+    """
     opts = []
     for UA in np.logspace(1,3,10):
         print "Optimizing UA = {}".format(UA)        
@@ -329,4 +329,4 @@ if __name__ == "__main__":
         print UA
         print opt2.message
         main(opt2.x,text=True,plot=1)
-        
+       """ 

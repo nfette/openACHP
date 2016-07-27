@@ -5,12 +5,15 @@ Created on Tue Jul 19 16:41:33 2016
 @author: nfette
 """
 
+import numpy as np
+#import matplotlib.pyplot as plt
+import scipy.optimize
 import CoolProp as CP
 import tabulate
-import numpy as np
 from hw2_1 import CelsiusToKelvin as C2K, KelvinToCelsius as K2C
 import HRHX_integral_model
-import matplotlib.pyplot as plt
+
+
 
 def safe_keyed_output(state,key):
     try:
@@ -204,17 +207,29 @@ m_refrig,kg/s""".split()
             plt.plot(q,T)            
         
     def getBoilerCurve(self):
-        return HRHX_integral_model.waterStream(self.points[3].p(),
-                                               self.points[1].hmass(),
-                                               self.m_dot)
+        if False:
+            return HRHX_integral_model.waterStream(self.points[3].p(),
+                self.points[1].hmass(), self.m_dot)
+        else:
+            return HRHX_integral_model.waterStreamInterpolated(
+                self.points[3].p(), self.points[1].hmass(), self.m_dot,
+                self.Q_boiler)
     def getCondenserCurve(self):
-        return HRHX_integral_model.waterStream(self.points[9].p(),
-                                               self.points[7].hmass(),
-                                               self.m_dot + self.m_refrig)
+        if False:
+            return HRHX_integral_model.waterStream(self.points[9].p(),
+                self.points[7].hmass(), self.m_dot + self.m_refrig)
+        else:
+            return HRHX_integral_model.waterStreamInterpolated(
+                self.points[9].p(), self.points[7].hmass(),
+                self.m_dot + self.m_refrig, self.Q_condenser)
     def getEvaporatorCurve(self):
-        return HRHX_integral_model.waterStream(self.points[11].p(),
-                                               self.points[10].hmass(),
-                                               self.m_refrig)
+        if False:
+            return HRHX_integral_model.waterStream(self.points[11].p(),
+                self.points[10].hmass(), self.m_refrig)
+        else:
+            return HRHX_integral_model.waterStreamInterpolated(
+                self.points[11].p(), self.points[10].hmass(), self.m_refrig,
+                self.Q_evaporator)
 
 class EjectorSystem(object):
     def __init__(self):
@@ -226,29 +241,30 @@ class EjectorSystem(object):
             ec.getBoilerCurve(), self.boiler)
         DeltaT1,epsilon1,UA1 = hrhx1.calcUA2(ec.Q_boiler)
         if plot:
-            HRHX_integral_model.plotFlow(hrhx1,None,ec.Q_boiler)
-            plt.xlabel("Heat (W)")
-            plt.ylabel("Temperature ($^\circ$C)")
-            plt.title("Boiler $\Delta T$ = {:g}, UA = {:g}".format(DeltaT1,UA1))
+            fig=HRHX_integral_model.plotFlow(hrhx1,None,ec.Q_boiler)
+            fig.gca().set_xlabel("Heat (W)")
+            fig.gca().set_ylabel("Temperature ($^\circ$C)")
+            fig.gca().set_title("Boiler $\Delta T$ = {:g}, UA = {:g}".format(DeltaT1,UA1))
             
         hrhx2 = HRHX_integral_model.counterflow_integrator(
             self.condenser, ec.getCondenserCurve())
         DeltaT2,epsilon2,UA2 = hrhx2.calcUA2(-ec.Q_condenser)
         if plot:
-            HRHX_integral_model.plotFlow(hrhx2,None,-ec.Q_condenser)
-            plt.title("Condenser $\Delta T$ = {:g}, UA = {:g}".format(DeltaT2,UA2))
+            fig=HRHX_integral_model.plotFlow(hrhx2,None,-ec.Q_condenser)
+            fig.gca().set_title("Condenser $\Delta T$ = {:g}, UA = {:g}".format(DeltaT2,UA2))
             
         hrhx3 = HRHX_integral_model.counterflow_integrator(
             ec.getEvaporatorCurve(), self.evaporator)
         DeltaT3,epsilon3,UA3 = hrhx3.calcUA2(ec.Q_evaporator)
         if plot:
-            HRHX_integral_model.plotFlow(hrhx3,None,ec.Q_evaporator)
-            plt.title("Evaporator $\Delta T$ = {:g}, UA = {:g}".format(DeltaT3,UA3))
+            fig=HRHX_integral_model.plotFlow(hrhx3,None,ec.Q_evaporator)
+            fig.gca().set_title("Evaporator $\Delta T$ = {:g}, UA = {:g}".format(DeltaT3,UA3))
         
         return (UA1 + UA2 + UA3),[DeltaT1,DeltaT2,DeltaT3]
 
 if __name__ == "__main__":
-    x0 = (200,60,5,1)
+    import matplotlib.pyplot as plt
+    x0 = np.array((200.,60.,5.,1.))
     ec = EjectorCycle(*x0)
     ec.update()
     print ec
@@ -257,21 +273,21 @@ if __name__ == "__main__":
     plt.show()
     
     es = EjectorSystem()
-    UA0 = es.calcUA(ec)[0]
+    UA0 = es.calcUA(ec,plot=True)[0]
     plt.show()
     
     def objective(x):
-        print "Objective at x = ", x
+        print "Objective at x = x0 + ", x-x0
         try:
             ec = EjectorCycle(*x)
             ec.update()
             UA, DTs = es.calcUA(ec)
         except:
-                return 0
-        if np.less(DTs,0).any():
             return 0
-        else:
-            return -ec.Q_evaporator
+        #if np.less(DTs,0).any():
+        #    return 0
+        #else:
+        return -ec.Q_evaporator
     def constraint0(x):
         try:
             ec = EjectorCycle(*x)
@@ -296,4 +312,6 @@ if __name__ == "__main__":
     def constraint8(x):
         return x[3]
     constraints = [{"type":"ineq","fun":c} for c in [constraint0,constraint1,constraint2,constraint3,constraint4,constraint5,constraint6,constraint7,constraint8]]
-    opt = scipy.optimize.minimize(objective,x0,constraints=constraints)
+    opt = scipy.optimize.minimize(objective,x0,constraints=constraints,method="COBYLA")
+    print opt
+    #xopt = np.array([ 202.28881578,   57.03458982,   11.55111659,    0.82029862])
