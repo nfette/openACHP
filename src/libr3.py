@@ -6,16 +6,15 @@ Created on Fri Mar 04 10:04:46 2016
 
 A single effect LiBr absorption chiller model.
 """
-
+import numpy as np
+import tabulate
+from scipy.optimize import fsolve
+from scipy.interpolate import PchipInterpolator
+from collections import namedtuple
 import CoolProp.CoolProp as CP
 from hw2_1 import CelsiusToKelvin as C2K
 from hw2_1 import KelvinToCelsius as K2C
 import libr_props, libr_props2
-import tabulate
-import numpy as np
-from collections import namedtuple
-from scipy.optimize import fsolve
-from scipy.interpolate import PchipInterpolator
 import HRHX_integral_model
 
 water = 'HEOS::Water'
@@ -722,7 +721,7 @@ evap_outlet""".split('\n')
         # Condenser cool to saturated
         result.append((Q,self.T_gen_inlet))
         h_condenser_sat = CP.PropsSI("H","T",C2K(self.T_cond),"Q",0,
-                                     "HEOS::water")
+                                     "HEOS::water") - h_w_ref
         Q += self.m_refrig * h_condenser_sat \
                 - self.m_refrig * self.h_gen_vapor_outlet
         result.append((Q,self.T_cond))
