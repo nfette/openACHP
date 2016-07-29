@@ -19,10 +19,7 @@ import HRHX_integral_model
 
 water = 'HEOS::Water'
 librname = lambda(x): 'INCOMP::LiBr[{}]'.format(x)
-
-ProcessPoint = namedtuple("ProcessPoint","fluid m x T P Q H D C")
-def nullPP(fluid):
-    return ProcessPoint(fluid,1,2,3,None,None,None,None,None)
+pwater = CP.AbstractState("HEOS","water")
 
 pointType = np.dtype(dict(names="name m x T p Q h D C".split(),formats=['S32']+['d']*8))
 class ProcessPoint(object):
@@ -61,7 +58,9 @@ def makePointTable(names):
 # http://www.coolprop.org/coolprop/HighLevelAPI.html#reference-states
 T_ref = 20
 P_ref = 101325
-h_w_ref = CP.PropsSI('H','T',C2K(T_ref),'P',P_ref,water)
+
+pwater.update(CP.PT_INPUTS,P_ref,C2K(T_ref))
+h_w_ref = pwater.hmass()
 
 class GeneratorLiBr(object):
     """Provide process heat canonical curve for generator in various forms.
@@ -114,7 +113,8 @@ class GeneratorLiBr(object):
             preheat = self.T_sat - self.T_in
             self.h_in = self.h_sat - preheat * self.cp_in
         
-        self.h_vapor_out = CP.PropsSI('H','P', self.P,'T', C2K(self.T_sat), water) - h_w_ref
+        pwater.update(CP.PT_INPUTS, self.P, C2K(self.T_sat))
+        self.h_vapor_out = pwater.hmass() - h_w_ref
         
         # Mass balance on LiBr
         self.m_out = self.m_in * self.x_in / self.x_out
@@ -179,9 +179,8 @@ class GeneratorLiBr(object):
         x_local = libr_props.massFraction(C2K(T),self.P * 1e-5)
         # Could parametrize this by x, but libr_props.temperature also has an
         # implicit solve. Only P(T,x) is explicit.
-        h_vapor_local = CP.PropsSI('H',
-                                   'P', self.P,
-                                   'T', C2K(T), water) - h_w_ref
+        pwater.update(CP.PT_INPUTS, self.P, C2K(T))
+        h_vapor_local = pwater.hmass() - h_w_ref
         h_solution_local = libr_props.massSpecificEnthalpy(C2K(T), x_local)
         # Mass balance on LiBr
         m_solution_local = self.m_in * self.x_in / x_local
@@ -226,9 +225,8 @@ class GeneratorLiBr(object):
             q = self.m_in * self.cp_in * (T - self.T_in)
         else:
             x_local = libr_props.massFraction(C2K(T),self.P * 1e-5)
-            h_vapor_local = CP.PropsSI('H',
-                                       'P', self.P,
-                                       'T', C2K(T), water) - h_w_ref
+            pwater.update(CP.PT_INPUTS, self.P, C2K(T))
+            h_vapor_local = pwater.hmass() - h_w_ref
             h_solution_local = libr_props.massSpecificEnthalpy(C2K(T), x_local)
             # Mass balance on LiBr
             m_solution_local = self.m_in * self.x_in / x_local
@@ -347,7 +345,8 @@ class AbsorberLiBr1(object):
         
         # Set up bounds and points for interpolation.
         # Absorber limit is liquid water.
-        self.Tmin = CP.PropsSI('T','P',P,'Q',0,water)
+        pwater.update(CP.PQ_INPUTS,P,0)
+        self.Tmin = pwater.T()
         x_points = np.linspace(x_in,0.1)
         T_points = np.zeros_like(x_points)
         q_points = np.zeros_like(x_points)
@@ -460,8 +459,11 @@ class ChillerLiBr1(object):
         self.Eff_SHX = Eff_SHX
         self.dx = x1 - x2
         
-        self.P_evap = CP.PropsSI('P','T',C2K(T_evap),'Q',1,water)
-        self.P_cond = CP.PropsSI('P','T',C2K(T_cond),'Q',1,water)
+        pwater.update(CP.QT_INPUTS, 1, C2K(T_evap))
+        self.P_evap = pwater.p()
+        
+        pwater.update(CP.QT_INPUTS, 1, C2K(T_cond))
+        self.P_cond = pwater.p()
         
         self.stateLabels = """abs_outlet
 pump_outlet
@@ -514,10 +516,12 @@ evap_outlet""".split('\n')
     # These routines allow updating solution
     def setT_evap(self,T_evap):
         self.T_evap = T_evap
-        self.P_evap = CP.PropsSI('P','T',C2K(T_evap),'Q',1,water)
+        pwater.update(CP.QT_INPUTS, 1, C2K(T_evap))
+        self.P_evap = pwater.p()
     def setT_cond(self,T_cond):
         self.T_cond = T_cond
-        self.P_cond = CP.PropsSI('P','T',C2K(T_cond),'Q',1,water)
+        pwater.update(CP.QT_INPUTS, 1, C2K(T_cond))
+        self.P_cond = pwater.p()
         
     def ZeroCheck(self):
         return self.W_pump + self.Q_evap_heat + self.Q_gen_total - self.Q_condenser_reject - self.Q_abs_total
@@ -588,10 +592,8 @@ evap_outlet""".split('\n')
             self.P_abs_pre = np.nan
                 
         # Heat rejection in absorber: energy balance
-        self.h_abs_vapor_inlet = CP.PropsSI('H',
-            'P',self.P_evap,
-            'Q',1,
-            water) - h_w_ref
+        pwater.update(CP.PQ_INPUTS, self.P_evap, 1)
+        self.h_abs_vapor_inlet = pwater.hmass() - h_w_ref
         self.Q_abs_main = self.m_refrig * self.h_abs_vapor_inlet \
             + self.m_concentrate * self.h_abs_inlet \
             - self.m_pump * self.h_abs_outlet
@@ -621,9 +623,8 @@ evap_outlet""".split('\n')
         self.Q_gen_pre_heat = self.m_pump * (self.h_gen_inlet - self.h_gen_pre)
         
         # Heat input to generator: energy balance
-        self.h_gen_vapor_outlet = CP.PropsSI('H',
-            'P', self.P_cond,
-            'T', C2K(self.T_gen_inlet), water) - h_w_ref
+        pwater.update(CP.PT_INPUTS, self.P_cond, C2K(self.T_gen_inlet))
+        self.h_gen_vapor_outlet = pwater.hmass() - h_w_ref
         self.vapor_superheat = self.T_gen_inlet - self.T_cond
         self.Q_gen_main = self.m_refrig * self.h_gen_vapor_outlet \
             + self.m_concentrate * self.h_gen_outlet \
@@ -631,9 +632,8 @@ evap_outlet""".split('\n')
         self.Q_gen_total = self.Q_gen_main + self.Q_gen_pre_heat
         
         # Condenser
-        self.h_condenser_outlet = CP.PropsSI('H',
-            'P',self.P_cond,
-            'Q', 0, water) - h_w_ref
+        pwater.update(CP.PQ_INPUTS, self.P_cond, 0)
+        self.h_condenser_outlet = pwater.hmass() - h_w_ref
         self.Q_condenser_reject = self.m_refrig * (self.h_gen_vapor_outlet
             - self.h_condenser_outlet)
         
@@ -720,8 +720,8 @@ evap_outlet""".split('\n')
         result.append((Q,self.T_abs_pre))
         # Condenser cool to saturated
         result.append((Q,self.T_gen_inlet))
-        h_condenser_sat = CP.PropsSI("H","T",C2K(self.T_cond),"Q",0,
-                                     "HEOS::water") - h_w_ref
+        pwater.update(CP.QT_INPUTS,0,C2K(self.T_cond))
+        h_condenser_sat = pwater.hmass() - h_w_ref
         Q += self.m_refrig * h_condenser_sat \
                 - self.m_refrig * self.h_gen_vapor_outlet
         result.append((Q,self.T_cond))
@@ -730,8 +730,9 @@ evap_outlet""".split('\n')
         result.append((Q,self.T_cond))
         # What if condenser subcools? Later.
         # Expander
-        T_into_evap = K2C(CP.PropsSI("T","H",self.h_condenser_outlet,
-                                 "P",self.P_evap,"HEOS::water"))
+        pwater.update(CP.HmassP_INPUTS,self.h_condenser_outlet + h_w_ref,
+                      self.P_evap)
+        T_into_evap = pwater.T()
         result.append((Q,T_into_evap))
         # Evaporator
         Q += self.m_refrig * (self.h_evap_outlet - self.h_evap_inlet)
@@ -825,9 +826,8 @@ evap_outlet""".split('\n')
             q = (T - T0) / (T1 - T0) * (Q1 - Q0)
         else:
             x_local = libr_props.massFraction(C2K(T),self.P_cond * 1e-5)
-            h_vapor_local = CP.PropsSI('H',
-                                       'P', self.P_cond,
-                                       'T', C2K(T), water) - h_w_ref
+            pwater.update(CP.PT_INPUTS, self.P_cond, C2K(T))
+            h_vapor_local = pwater.hmass() - h_w_ref
             h_solution_local = libr_props.massSpecificEnthalpy(C2K(T), x_local)
             # Mass balance on LiBr
             m_solution_local = self.m_pump * self.x1 / x_local
