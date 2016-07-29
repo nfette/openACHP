@@ -206,6 +206,7 @@ class system1:
         return tabulate.tabulate(zip(names,vals,units))
     
     def display(sys):
+        import matplotlib.pyplot as plt
         HRHX_integral_model.plotFlow(sys.genHX, None, sys.chiller.Q_gen_total)
         plt.title("Generator")
         HRHX_integral_model.plotFlow(sys.absHX, None, sys.chiller.Q_abs_total)
@@ -216,7 +217,7 @@ class system1:
         plt.title("Evaporator")    
         print sys
         
-if __name__ == "__main__":
+def main():
 
     sys = makeSystem()
 
@@ -238,9 +239,12 @@ if __name__ == "__main__":
 
     #try:
     m_pump,T_evap,T_cond,x1,x2 = 0.06213797,1.49332455,39.90638902,0.61209421,0.6791503
-    x0 = m_pump, T_evap, T_cond, x1, x2        
+    x0 = m_pump, T_evap, T_cond, x1, x2
     print sys.calcUA(x0)
     sys.display()
     opt = sys.optimize()
     #finally:
     sys.display()
+    
+if __name__ == "__main__":
+    main()

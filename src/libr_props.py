@@ -33,6 +33,7 @@ Source: Boryta, D.A., 1970, "Solubility of Lithium Bromide in Water between
 @author: nfette
 """
 
+import CoolProp as CP
 from CoolProp.CoolProp import PropsSI
 from CoolProp import AbstractState, constants
 from hw2_1 import CelsiusToKelvin as C2K, KelvinToCelsius as K2C
@@ -42,6 +43,7 @@ import numpy as np
 MW_LiBr = 0.08685 # kg/mol
 MW_H2O = 0.018015268 # kg/mol
 xmax = 0.7
+pwater = AbstractState("HEOS","water")
 
 def mole2massFraction(x):
     """input: mole fraction, x, of LiBr"""
@@ -108,7 +110,8 @@ def pressure(T,x):
     Theta, = thetaFun(T,x)
     Q = 0.0
     #print("Theta, Q = {}, {}".format(Theta, Q))
-    pressurePa = PropsSI('P','T',Theta,'Q',Q,'water') # Pa
+    pwater.update(CP.QT_INPUTS, Q, Theta)
+    pressurePa = pwater.p()
     #print("pressurePa = {}".format(pressurePa)) # ()
     pressureBar = pressurePa * 1e-5
     return pressureBar
@@ -143,7 +146,8 @@ def temperature(P,x):
     #soln = minimize(objective_T, guess, constraints=cons, args=(P,x,))
     Q = 0.0
     pressurePa = P * 1e5
-    theta = PropsSI('T','P',pressurePa,'Q',Q,'water') # K
+    pwater.update(CP.PQ_INPUTS, pressurePa, Q)
+    theta = pwater.T() # K
     guess = (theta,)
     soln = minimize(objective_T, guess, args=(theta,x),jac=True, bounds=[(0.,647.)])
     #print("Success, message: {}, {}".format(soln.success, soln.message))
@@ -188,7 +192,8 @@ def massFraction(T,P,guess=(0.5,)):
     #soln = minimize(objective_x, guess, constraints=cons, args=(T,P))
     pressurePa = P * 1e5
     Q = 0.0
-    theta = PropsSI("T","P",pressurePa,"Q",Q,"water") # [K]
+    pwater.update(CP.PQ_INPUTS, pressurePa, Q)
+    theta = pwater.T() # [K]
     #print("T,P,Theta = {}, {}, {}".format(T,P,theta))
     soln2 = minimize(objective_x, guess, args=(T,theta),jac=True,bounds=[(0,1)])
     #print("Success, message: {}, {}".format(soln2.success, soln2.message))
@@ -209,8 +214,8 @@ Based on table 7 and equation (4) in reference.
     m=[1,1,2,3,6,1,3,5,4,5,5,6,6,1,2,2,2,5,6,7,1,1,2,2,2,3,1,1,1,1]
     n=[0,1,6,6,2,0,0,4,0,4,5,5,6,0,3,5,7,0,3,1,0,4,2,6,7,0,0,1,2,3]
     t=[0,0,0,0,0,1,1,1,2,2,2,2,2,3,3,3,3,3,3,3,4,4,4,4,4,4,5,5,5,5]
-    T_crit = PropsSI('water','T_critical') # [K]
-    P_crit = PropsSI('water','p_critical') # [Pa]
+    T_crit = pwater.T_critical() # [K]
+    P_crit = pwater.p_critical()
     # This one had a problem starting around CoolProp version 5.0.8
     #h_crit = PropsSI('H','T',T_crit,'P',P_crit,'water') # J/kg
     # Instead, use the low-level interface
@@ -228,7 +233,8 @@ Based on table 7 and equation (4) in reference.
     for i in range(len(a)):
         s = s + a[i] * x_N**m[i] * (0.4-x_N)**n[i] * (T_c/(TK-T_0))**t[i]
     Qu = 0.0
-    h_w_molar = PropsSI('Hmolar','T',TK,'Q',Qu,'water') # [J/mol]
+    pwater.update(CP.QT_INPUTS, Qu, TK)
+    h_w_molar = pwater.hmolar() # [J/mol]
     h_molar = (1 - x_N) * h_w_molar + h_c * s # [J/mol]
     MW = x_N * MW_LiBr + (1 - x_N) * MW_H2O # [kg/mol]
     result = h_molar / MW # [J/kg]
@@ -253,8 +259,8 @@ Based on table 8 and equation (5) in reference.
     T_c = 647.096 # [K]
     T_0 = 221 # [K] "is a nonlinear parameter of the equations"
     #s_c = 79.3933 # [J/gmol-K]
-    T_crit = PropsSI('water','T_critical') # [K]
-    P_crit = PropsSI('water','p_critical') # [Pa]
+    T_crit = pwater.T_critical() # [K]
+    P_crit = pwater.p_critical() # [Pa]
     state = AbstractState('HEOS','Water')
     state.specify_phase(constants.iphase_critical_point)
     state.update(constants.PT_INPUTS, P_crit, T_crit)
@@ -271,7 +277,8 @@ Based on table 8 and equation (5) in reference.
     Qu_water = 0.0
     #s_w_mass = PropsSI('S','T',TK,'Q',Qu_water,'water') # J/kg-K
     #s_w_molar = s_w_mass * MW_H2O # J/mol-K
-    s_w_molar = PropsSI('Smolar','T',TK,'Q',Qu_water,'water') # J/mol-K
+    pwater.update(CP.QT_INPUTS, Qu_water, TK)
+    s_w_molar = pwater.smolar() # J/mol-K
     s_molar = (1 - x_N) * s_w_molar + s_c * s
     MW = x_N * MW_LiBr + (1 - x_N) * MW_H2O
     result = s_molar / MW
@@ -299,7 +306,8 @@ Based on Table 6 and equation (3) of reference.
         s = s + a[i] * x_N ** m[i] * (0.4 - x_N) ** n[i] \
             * (T_c / (TK - T_0)) ** t[i]
     Qu_water = 0.0
-    Cp_w_molar = PropsSI('Cpmolar','T',TK,'Q',Qu_water,'water') # J/mol-K
+    pwater.update(CP.QT_INPUTS, Qu_water, TK)
+    Cp_w_molar = pwater.cpmolar() # J/mol-K
     Cp_molar = (1 - x_N) * Cp_w_molar + Cp_t * s
     MW = x_N * MW_LiBr + (1 - x_N) * MW_H2O
     result = Cp_molar / MW
@@ -348,7 +356,8 @@ def twoPhaseProps(h,P,z):
         hv = 0
         if (h > hL):
             Q_vapor = 1.
-            hv = PropsSI('Hmass','T',T,'Q',Q_vapor,'Water') # J/kg
+            pwater.update(CP.QT_INPUTS, Q_vapor, T)
+            hv = pwater.hmass() # J/kg
             hfg = hv - hL
             Q = (h - hL) / (hfg) # kg/kg
             # qq = (x - z) / x
@@ -383,8 +392,8 @@ Outputs:
     
     #rho_crit_mass = PropsSI('water','rhomass_critical') # [kg/m3]
     #rho_crit_molar = rho_crit_mass / MW_H2O # [mol/m3]
-    rho_crit_molar = PropsSI('water','rhomolar_critical')
-    T_crit = PropsSI('water','T_critical') # [K]
+    rho_crit_molar = pwater.rhomolar_critical()
+    T_crit = pwater.T_critical() # [K]
     print("""By the way, water critical properties:
 T_crit = {} K,
 rho_crit_molar = {} mol/m3""".format(T_crit,rho_crit_molar))
@@ -396,7 +405,8 @@ rho_crit_molar = {} mol/m3""".format(T_crit,rho_crit_molar))
     Qu_water = 0.0
     #rhomass_sat = PropsSI('D','T',T,'Q',Qu_water,'water') # kg/m3
     #rhomolar_sat = rhomass_sat / MW_H2O
-    rhomolar_sat = PropsSI("Dmolar", "T", T, "Q", Qu_water, "water") # mol/m3
+    pwater.update(CP.QT_INPUTS, Qu_water, T)
+    rhomolar_sat = pwater.rhomolar() # mol/m3
 
     s=0
     for i in range(len(a)):
