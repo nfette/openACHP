@@ -7,6 +7,7 @@ Created on Sun Jul 10 23:39:27 2016
 
 import ammonia1
 import HRHX_integral_model
+import tabulate
 
 def makeSystem():
     # Units: K, kg/s, kW/kg-K
@@ -117,6 +118,7 @@ class system_aqua1:
         return total
         
     def display(sys):
+        import matplotlib.pyplot as plt
         HRHX_integral_model.plotFlow(sys.genHX, None, sys.chiller.Q_gen)
         plt.title("Generator")
         HRHX_integral_model.plotFlow(sys.absHX, None, -sys.chiller.Q_abs)

@@ -148,8 +148,10 @@ m_refrig,kg/s""".split()
         return statestr+"\n\n"+varstr
         
     
-    def display(self):
+    def display(self,fig=None):
         import matplotlib.pyplot as plt
+        if fig is None:
+            fig = plt.figure()
         for stream,ii in [("refrig", [9,10,11]),
                           ("mix", [7,8,9]), #6, ...
                           ("motive", [9,1,2,3,4]), #... ,5
@@ -194,10 +196,12 @@ m_refrig,kg/s""".split()
             vT.append(state.T())
         plt.plot(lh,lT,'--')
         plt.plot(vh,vT,'--')
+        return fig
         
-    def plotInternalCurves(self):
+    def plotInternalCurves(self,fig=None):
         import matplotlib.pyplot as plt
-        plt.figure()
+        if fig is None:
+            fig = plt.figure()
         for c,Q in [(self.getEvaporatorCurve,self.Q_evaporator),
                     (self.getCondenserCurve,self.Q_condenser),
                     (self.getBoilerCurve,self.Q_boiler)]:
@@ -205,6 +209,7 @@ m_refrig,kg/s""".split()
             q = np.linspace(0,Q*1.05)
             T = curve.T(q)            
             plt.plot(q,T)            
+        return fig
         
     def getBoilerCurve(self):
         if False:
@@ -277,17 +282,20 @@ if __name__ == "__main__":
     plt.show()
     
     def objective(x):
-        print "Objective at x = x0 + ", x-x0
+        print "Objective at x = x0 + ", x-x0,
         try:
             ec = EjectorCycle(*x)
             ec.update()
+            print "Cooling = ", ec.Q_evaporator,
             UA, DTs = es.calcUA(ec)
+            print "DTs = ", DTs
         except:
+            print "caught exception ... unable to compute"
             return 0
-        #if np.less(DTs,0).any():
-        #    return 0
-        #else:
-        return -ec.Q_evaporator
+        if np.less(DTs,0).any():
+            return 0
+        else:
+            return -ec.Q_evaporator
     def constraint0(x):
         try:
             ec = EjectorCycle(*x)
@@ -311,7 +319,21 @@ if __name__ == "__main__":
         return x[2]
     def constraint8(x):
         return x[3]
-    constraints = [{"type":"ineq","fun":c} for c in [constraint0,constraint1,constraint2,constraint3,constraint4,constraint5,constraint6,constraint7,constraint8]]
-    opt = scipy.optimize.minimize(objective,x0,constraints=constraints,method="COBYLA")
-    print opt
-    #xopt = np.array([ 202.28881578,   57.03458982,   11.55111659,    0.82029862])
+    constraints = [{"type":"ineq","fun":c} for c in [constraint0,constraint1,
+                   constraint2,constraint3,constraint4,constraint5,constraint6,
+                   constraint7,constraint8]]
+    if False:
+        opt = scipy.optimize.minimize(objective,x0,constraints=constraints,
+                                  method="COBYLA",options=dict(maxiter=2000))
+        print opt
+
+    else:
+        #xopt = np.array([ 202.28881578,   57.03458982,   11.55111659,    0.82029862])
+        xopt = np.array([ 208.40856598,   51.31228023,    0.92764147,    0.44792856])
+        ec1=EjectorCycle(*xopt)
+        ec1.update()
+        fig=ec.plotInternalCurves()
+        ec1.plotInternalCurves(fig)
+        fig=ec.display()
+        ec1.display(fig)
+        

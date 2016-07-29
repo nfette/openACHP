@@ -24,6 +24,30 @@ librname = lambda(x): 'INCOMP::LiBr[{}]'.format(x)
 ProcessPoint = namedtuple("ProcessPoint","fluid m x T P Q H D C")
 def nullPP(fluid):
     return ProcessPoint(fluid,1,2,3,None,None,None,None,None)
+
+pointType = np.dtype(dict(names="name m x T p Q h D C".split(),formats=['S32']+['d']*8))
+class ProcessPoint(object):
+    def __init__(self,row):
+        self.row = row
+def makeprop(i):
+    def getx(self):
+        return self.row[i]
+    def setx(self,value):
+        self.row[i]=value
+    def delx(self):
+        del self.row[i]
+    return property(getx,setx,delx)
+for i in pointType.names:
+   setattr(ProcessPoint,i,makeprop(i))
+class ProcessTable(object):
+    pass
+def makePointTable(names):
+    table=np.zeros(len(names),dtype=pointType)
+    points=ProcessTable()
+    for i,name in enumerate(names):
+        points.__setattr__(name,ProcessPoint(table[i]))
+        table[i][0]=name
+    return table,points
     
 # Units in this file:
 # temperature [C]
@@ -440,22 +464,23 @@ class ChillerLiBr1(object):
         self.P_evap = CP.PropsSI('P','T',C2K(T_evap),'Q',1,water)
         self.P_cond = CP.PropsSI('P','T',C2K(T_cond),'Q',1,water)
         
-        self.stateLabels = """abs outlet
-pump outlet
-gen inlet
-gen sat. liquid
-gen outlet
-SHX conc. outlet
-abs inlet
-abs sat. liquid
-gen vapor outlet
-cond sat. vapor
-cond outlet
-evap inlet
-evap sat. liquid
-evap sat. vapor
-evap outlet""".split('\n')
-        self.states=dict((k, nullPP('LiBrH2O')) for k in self.stateLabels)
+        self.stateLabels = """abs_outlet
+pump_outlet
+gen_inlet
+gen_sat_liquid
+gen_outlet
+SHX_conc_outlet
+abs_inlet
+abs_sat_liquid
+gen_vapor_outlet
+cond_sat_vapor
+cond_outlet
+evap_inlet
+evap_sat_liquid
+evap_sat_vapor
+evap_outlet""".split('\n')
+        #self.states=dict((k, nullPP('LiBrH2O')) for k in self.stateLabels)
+        self.stateTable,self.states=makePointTable(self.stateLabels)
         
         
         self.T_gen_inlet = 0
@@ -894,10 +919,11 @@ evap outlet""".split('\n')
         kg/kg
         W
         none""".split()
-        return tabulate.tabulate(zip(names,vals,units))
+        vartable = tabulate.tabulate(zip(names,vals,units))
+        statetable = tabulate.tabulate(self.stateTable,pointType.names)
+        return vartable + "\n" + statetable
         
-
-if __name__ == "__main__":
+def main():
     if True:
         # Example 6.1 in the book
         P1,P2 = 673, 7445
@@ -918,7 +944,7 @@ if __name__ == "__main__":
         finally:
             print c
         
-    if False:
+    if True:
         # Figure 6.3 in the book
         Eff_SHX = np.linspace(0,1)
         COP = np.zeros_like(Eff_SHX)
@@ -929,7 +955,12 @@ if __name__ == "__main__":
                 COP[i] = c.COP
             except:
                 pass
-        import matplotlib.pyplot as plt
-        plt.plot(Eff_SHX, COP)
-        plt.show()
+        if False:
+            import matplotlib.pyplot as plt
+            plt.plot(Eff_SHX, COP)
+            plt.show()
     
+    return c
+    
+if __name__ == "__main__":
+    c=main()
