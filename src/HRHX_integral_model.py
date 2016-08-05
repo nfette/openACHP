@@ -31,6 +31,9 @@ class streamExample1(object):
     def T(self,q):
         C = self.mdot * self.cp
         return self.T_inlet + q / C
+    def __repr__(self):
+        return "T_inlet = {}, mdot = {}, cp = {}".format(
+            self.T_inlet, self.mdot, self.cp)
 
 class streamExample2(object):
     """Pure fluid boiling at constant temperature.
@@ -301,6 +304,8 @@ class counterflow_integrator(object):
 
 def plotFlow(ci,figure=None,Qactual=None):
     import matplotlib.pyplot as plt
+    if ci.Qmax == np.inf:
+        ci.calcQmax()
     QQ = np.linspace(0,ci.Qmax)
     Tcold = ci.cold.T(QQ)
     Thot1 = ci.hot.T(-QQ)

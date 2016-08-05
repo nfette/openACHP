@@ -345,6 +345,8 @@ Q_gen,kW
 Q_cond,kW
 Q_evap,kW
 Q_reflux,kW
+Q_shx,kW
+Q_cehx,kW
 W_pump,kW
 COP,kW/kW
 ZeroCheck,kW
@@ -386,6 +388,8 @@ m_refrig,kg/s""".split()
         self.Q_cond = 0
         self.Q_evap = 0
         self.Q_reflux = 0
+        self.Q_shx = 0
+        self.Q_cehx = 0
         self.COP = 0
         self.ZeroCheck = 0
         self.W_pump = 0
@@ -562,14 +566,14 @@ m_refrig,kg/s""".split()
         # More debugging
         self.Q_SHXhot = self.m_weak * self.weak_shx_outlet.h \
             - self.m_weak * self.weak_gen_outlet.h
-        self.Q_SHXcold = self.m_rich * self.rich_shx_outlet.h \
+        self.Q_shx = self.m_rich * self.rich_shx_outlet.h \
             - self.m_rich * self.rich_pump_outlet.h
-        self.ZeroCheckSHX = self.Q_SHXcold + self.Q_SHXhot
+        self.ZeroCheckSHX = self.Q_shx + self.Q_SHXhot
         self.Q_CEHXhot = self.m_refrig * self.refrig_cehx_liquid_outlet.h \
             - self.m_refrig * self.refrig_cond_outlet.h
-        self.Q_CEHXcold = self.m_refrig * self.refrig_cehx_vapor_outlet.h \
+        self.Q_cehx = self.m_refrig * self.refrig_cehx_vapor_outlet.h \
             - self.m_refrig * self.refrig_evap_outlet.h
-        self.ZeroCheckCEHX = self.Q_CEHXhot + self.Q_CEHXcold
+        self.ZeroCheckCEHX = self.Q_CEHXhot + self.Q_cehx
         
         self.Q_gen_rect_combo = self.m_refrig * self.refrig_rect_outlet.h \
             + self.m_weak * self.weak_gen_outlet.h \
@@ -735,14 +739,14 @@ m_refrig,kg/s""".split()
     def getRectifierStream(self):
         return AmmoniaRefluxStream(self.gen_vapor_outlet,self.m_gen_vapor,
                                    self.gen_reflux_inlet,self.m_gen_reflux)
-    def getSHX(self):
+    def getSHX(self,**kwargs):
         hot = HRHX_integral_model.aquaStream(self.weak_gen_outlet,self.m_weak)
         cold = HRHX_integral_model.aquaStream(self.rich_pump_outlet,self.m_rich)
-        return HRHX_integral_model.counterflow_integrator(cold,hot)
-    def getCEHX(self):
+        return HRHX_integral_model.counterflow_integrator(cold,hot,**kwargs)
+    def getCEHX(self,**kwargs):
         hot = HRHX_integral_model.aquaStream(self.refrig_cond_outlet,self.m_refrig)
         cold = HRHX_integral_model.aquaStream(self.refrig_evap_outlet,self.m_refrig)
-        return HRHX_integral_model.counterflow_integrator(cold,hot)
+        return HRHX_integral_model.counterflow_integrator(cold,hot,**kwargs)
     def display(a):
         import matplotlib.pyplot as plt
         plt.figure()
@@ -759,14 +763,15 @@ m_refrig,kg/s""".split()
         plotStream(rect, (1.05*a.Q_reflux,0), (a.refrig_rect_outlet.T,a.gen_vapor_outlet.T))
         
         # Internal streams
-        shx = a.getSHX()
-        HRHX_integral_model.plotFlow(shx,Qactual=a.Q_SHXcold)
+        shx = a.getSHX(initQmax=True)
+        HRHX_integral_model.plotFlow(shx,Qactual=a.Q_shx)
         plt.title("SHX")
-        cehx = a.getCEHX()
-        HRHX_integral_model.plotFlow(cehx,Qactual=a.Q_CEHXcold)
+        cehx = a.getCEHX(initQmax=True)
+        HRHX_integral_model.plotFlow(cehx,Qactual=a.Q_cehx)
         plt.title("CEHX")
 
 def plotStream(stream, qrange, Trange):
+    import matplotlib.pyplot as plt
     # First let's plot T(q)
     q1 = np.linspace(*qrange)
     T1 = stream.T(q1)
@@ -775,12 +780,13 @@ def plotStream(stream, qrange, Trange):
     q2 = stream.q(T2)
     plt.plot(q2,T2,'.',color=l.get_c())
 
-if __name__ == "__main__":
+def main():
     a = AmmoniaChiller()
     print a
     a.update()
     print a
     a.display()
+    return a
     
-    
-        
+if __name__ == "__main__":
+    a = main()

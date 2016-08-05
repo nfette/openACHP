@@ -63,7 +63,7 @@ class EES_DLP:
         #myDLL=ctypes.cdll.LoadLibrary(self.path)
         # The function has the same name as the file, per EES documentation
         self.name = os.path.splitext(os.path.basename(path))[0].upper()
-        print(self.name)
+        #print(self.name)
         self.func = self.mydll[self.name]
         self.func.argtypes=[EesStringData, ctypes.POINTER(ctypes.c_int),
                        ctypes.POINTER(EesParamRec), ctypes.POINTER(EesParamRec)]
