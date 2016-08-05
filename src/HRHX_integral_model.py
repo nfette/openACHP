@@ -138,21 +138,24 @@ class waterStream(object):
         h_out = q / self.mdot + self.h_in
         return K2C(PropsSI('T','P',self.P,'H',h_out,self.fluid))
         
-class waterStreamInterpolated(object):
+class waterStreamInterpolated(waterStream):
     """A class for phase change of a given fluid. The specific heats of
     saturated water liquid and vapor at equilibrium are different,
     so the streamExample2 is insufficient to represent this case."""
     def __init__(self,P,h_in,mdot,Q_design,fluid='water'):
-        ws = waterStream(P,h_in,mdot,fluid)
-        q_points1 = np.linspace(0,Q_design*1.1)
-        T_points1 = ws.T(q_points1)
+        s = super(waterStreamInterpolated,self)
+        #print s
+        s.__init__(P,h_in,mdot,fluid)
+        self.Q_design = Q_design
+        q_points1 = np.linspace(0,Q_design*1.1,100)
+        T_points1 = self.T(q_points1)
 
         # This may not work well
         T0,T1 = T_points1[0],T_points1[-1]
         if T0 == T1:
             T1 = T0 + 5. * np.sign(Q_design)
-        T_points2 = np.linspace(T0,T1)
-        q_points2 = ws.q(T_points2)
+        T_points2 = np.linspace(T0,T1,100)
+        q_points2 = self.q(T_points2)
         
         if Q_design > 0:
             self.T = scipy.interpolate.PchipInterpolator(q_points1,T_points1)
@@ -207,7 +210,7 @@ class counterflow_integrator(object):
     q > 0: heat is transferred into stream (cold stream is heating up)
     q < 0: heat is transferred out of stream (hot stream is cooling down)
     """
-    def __init__(self, cold, hot, useHotT=False):
+    def __init__(self, cold, hot, useHotT=False, initQmax=False):
         self.cold = cold
         self.hot = hot
         self.useHotT = useHotT
@@ -215,7 +218,11 @@ class counterflow_integrator(object):
         self.func1 = lambda(Q):Q+self.cold.q(self.hot.T(-Q))
         self.func2 = lambda(Q):Q-self.hot.q(self.cold.T(Q))
         
-        self.calcQmax()
+        if initQmax:
+            self.calcQmax()
+        else:
+            self.Qmax = np.inf
+            
     def calcUA(self,Q,eff=False):
         # OLD
         #func = lambda(q):1./(self.hot.T(Q-q)-self.cold.T(q))
@@ -284,8 +291,8 @@ class counterflow_integrator(object):
     def calcUA2(self,Q):
         DeltaT = self.calcDistanceT(Q)
         epsilon = Q / self.Qmax
-        if DeltaT <= 0 or epsilon >= 1:
-            UA = np.inf
+        if DeltaT <= 0:
+            UA = np.inf            
         else:
             func = lambda(q):1./(self.hot.T(q-Q)-self.cold.T(q))
             UA = scipy.integrate.quad(func,0,Q)[0]

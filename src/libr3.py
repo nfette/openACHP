@@ -133,6 +133,7 @@ class GeneratorLiBr(object):
         
         
     def __repr__(self):
+        import tabulate
         names = """P
         x_in
         x_out
@@ -260,7 +261,7 @@ class GeneratorLiBrInterpolated(GeneratorLiBr):
     def __init__(self, P, m_in, T_in, x_in, x_out, debug=False):
         print "I am still alive!"
         self.update(P, m_in, T_in, x_in, x_out)
-        TT = np.linspace(self.T_in,self.Tmax)
+        TT = np.linspace(self.T_in,self.Tmax,100)
         qfunc = np.vectorize(self._q)
         qq = qfunc(TT)
         if np.isnan(qq).any():
@@ -327,15 +328,17 @@ class AbsorberLiBr1(object):
             # Pre-cooling is required to reach saturation temperature
             self.Q_pre_cool = self.m_in * (self.h_sat - self.h_in)
             self.T_in = K2C(t)
-            prepoints_h = np.linspace(self.h_in, self.h_sat)
-            prepoints_T = np.zeros_like(prepoints_h)
-            prepoints_q = np.zeros_like(prepoints_h)
-            prepoints_x = np.zeros_like(prepoints_h)
-            for i,h in enumerate(prepoints_h):
-                q,t,xl = libr_props.twoPhaseProps(h,self.P*1e-5,self.x_in)
+            prepoints_x = np.linspace(xl,self.x_in,20,endpoint=False)
+            prepoints_T = np.zeros_like(prepoints_x)
+            prepoints_q = np.zeros_like(prepoints_x)
+            
+            for i,x in enumerate(prepoints_x):
+                #q,t,xl = libr_props.twoPhaseProps(h,self.P*1e-5,self.x_in)
+                t = libr_props.temperature(self.P * 1e-5, x)
+                h = libr_props.massSpecificEnthalpy(t,x)
                 prepoints_T[i] = K2C(t)
                 prepoints_q[i] = self.m_in * (h - self.h_in)
-                prepoints_x[i] = xl
+                prepoints_x[i] = x
         else:
             self.Q_pre_cool = 0
             self.T_in = K2C(libr_props.temperature(self.P * 1e-5, self.x_in))
@@ -347,7 +350,7 @@ class AbsorberLiBr1(object):
         # Absorber limit is liquid water.
         pwater.update(CP.PQ_INPUTS,P,0)
         self.Tmin = pwater.T()
-        x_points = np.linspace(x_in,0.1)
+        x_points = np.linspace(x_in,0.1,100)
         T_points = np.zeros_like(x_points)
         q_points = np.zeros_like(x_points)
         #q_func = np.vectorize(self._q)
@@ -403,7 +406,7 @@ class AbsorberLiBr1(object):
         m_out = self.m_in + m_vapor
         # Heat is inbound.
         result = -self.m_in * self.h_in - m_vapor * self.h_vapor_inlet \
-            + m_out * h_local + self.Q_pre_cool
+            + m_out * h_local
         return T,result
         
     def __repr__(self):
@@ -411,21 +414,21 @@ class AbsorberLiBr1(object):
         m_in
         x_in
         T_in
-        T_vapor_inlet
         h_in
+        h_sat
         h_vapor_inlet""".split()
         vals = [self.P,
                 self.m_in,
                 self.x_in,
                 self.T_in,
-                self.T_vapor_inlet,
                 self.h_in,
+                self.h_sat,
                 self.h_vapor_inlet]
         units = """Pa
         kg/kg kg/kg
         C
         kg/s
-        C C
+        C
         kg/s kg/s
         J/kg J/kg J/kg J/kg
         W W W""".split()
@@ -860,12 +863,14 @@ evap_outlet""".split('\n')
     
     def getCondenserStream(self):
         h_rel = self.h_gen_vapor_outlet + h_w_ref
-        condenser = HRHX_integral_model.waterStream(self.P_cond,h_rel,self.m_refrig)
+        condenser = HRHX_integral_model.waterStreamInterpolated(
+            self.P_cond, h_rel, self.m_refrig, -self.Q_condenser_reject)
         return condenser
         
     def getEvaporatorStream(self):
         h_rel = self.h_evap_inlet + h_w_ref
-        evaporator = HRHX_integral_model.waterStream(self.P_evap,h_rel,self.m_refrig)
+        evaporator = HRHX_integral_model.waterStreamInterpolated(
+            self.P_evap, h_rel, self.m_refrig, self.Q_evap_heat)
         return evaporator
     
     def __repr__(self):

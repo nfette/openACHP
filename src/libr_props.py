@@ -44,6 +44,16 @@ MW_LiBr = 0.08685 # kg/mol
 MW_H2O = 0.018015268 # kg/mol
 xmax = 0.7
 pwater = AbstractState("HEOS","water")
+# The LiBr enthalpy is zero at 293.15 K, 1 atm, per
+# http://www.coolprop.org/fluid_properties/Incompressibles.html#general-introduction
+# We need to evaluate water enthalpy relative to that, but it is not built-in.
+# http://www.coolprop.org/coolprop/HighLevelAPI.html#reference-states
+T_ref = 20
+P_ref = 101325
+
+pwater.update(CP.PT_INPUTS,P_ref,C2K(T_ref))
+h_w_ref = pwater.hmass()
+h_w_molar_ref = pwater.hmolar()
 
 def mole2massFraction(x):
     """input: mole fraction, x, of LiBr"""
@@ -234,7 +244,7 @@ Based on table 7 and equation (4) in reference.
         s = s + a[i] * x_N**m[i] * (0.4-x_N)**n[i] * (T_c/(TK-T_0))**t[i]
     Qu = 0.0
     pwater.update(CP.QT_INPUTS, Qu, TK)
-    h_w_molar = pwater.hmolar() # [J/mol]
+    h_w_molar = pwater.hmolar() - h_w_molar_ref # [J/mol]
     h_molar = (1 - x_N) * h_w_molar + h_c * s # [J/mol]
     MW = x_N * MW_LiBr + (1 - x_N) * MW_H2O # [kg/mol]
     result = h_molar / MW # [J/kg]
@@ -367,6 +377,7 @@ def twoPhaseProps(h,P,z):
         #    .format(iter,h,P,z,Q,x,T,hL,hv))
         if (abs(Q - Qlast) < 0.00001) and (iter > 5):
             break
+    #print "TwoPhaseProps converged at iter = ", iter
     return Q, T, x
 
 def massSpecificGibbs(T,x):
