@@ -68,7 +68,7 @@ class AmmoniaAbsorberStream(object):
                 #   1. We must cool to saturated vapor.
                 vapor = amm.props2(P=weak_inlet.P,Qu=1,x=weak_inlet.x)            
                 
-                prepoints_h = np.linspace(weak_inlet.h,vapor.h, 10)
+                prepoints_h = np.linspace(weak_inlet.h,vapor.h, 10, endpoint=False)
                 for i,h in enumerate(prepoints_h):
                     state = amm.props2(P=weak_inlet.P,x=weak_inlet.x,h=h)
                     T_points.append(state.T)
@@ -79,13 +79,17 @@ class AmmoniaAbsorberStream(object):
                 vapor = weak_inlet
                 
             # 2. Then cool to saturated liquid.
-            for i,Qu in enumerate(np.linspace(vapor.Qu,0, 10)):
+            for i,Qu in enumerate(np.linspace(vapor.Qu,0, 10, endpoint=True)):
                 state = amm.props2(P=weak_inlet.P,x=weak_inlet.x,Qu=Qu)
                 T_points.append(state.T)
                 q = m_weak * (state.h - weak_inlet.h)
                 q_points.append(q)
                 x_points.append(weak_inlet.x)
             self.q_pre = q
+            
+            T_points.pop()
+            q_points.pop()
+            x_points.pop()
                 
         else:
             self.sat_inlet = weak_inlet
@@ -129,7 +133,8 @@ class AmmoniaAbsorberStream(object):
         
         local_state = amm.props2(P=self.weak_inlet.P,Qu=0,x=x_local)
         #print local_state
-        Q = self.q_pre + m_rich * local_state.h - m_weak * self.sat_inlet.h - m_refrig * self.refrig_inlet.h
+        Q = self.q_pre + m_rich * local_state.h - m_weak * self.sat_inlet.h \
+            - m_refrig * self.refrig_inlet.h
         #print m_refrig,m_rich,Q,local_state.T
         return Q,local_state.T
 
@@ -174,7 +179,9 @@ class AmmoniaGeneratorStream(object):
         if self.rich_inlet.isSubcooled():
             # Need to heat it up.
             liquid,vapor = amm.equilibriumStates(self.rich_inlet.P,rich_inlet.x)
-            for h in np.linspace(rich_inlet.h, liquid.h, 10, endpoint=False):
+            # TODO: This is not graceful, but endpoint is used for the final
+            # quantities. Eg., q_pre is used in self._x()
+            for h in np.linspace(rich_inlet.h, liquid.h, 10, endpoint=True):
                 state = amm.props2(P=rich_inlet.P,x=rich_inlet.x,h=h)
                 q = m_rich * (h - rich_inlet.h)
                 q_points.append(q)
@@ -184,6 +191,10 @@ class AmmoniaGeneratorStream(object):
             self.sat_inlet = liquid
             self.m_sat = m_rich
             self.m_desorb = m_vapor
+
+            q_points.pop()
+            T_points.pop()
+            x_points.pop()
             
         elif self.rich_inlet.isSuperheated():
             # By design, this should not happen! Just use a rectifier.
