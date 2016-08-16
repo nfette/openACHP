@@ -15,136 +15,148 @@ desorption steps are given the same dwell time). Key features:
 * Then compute the states, refrigerant mass flow, etc, and output Q and COP.
 
 """
-from numpy import linspace, logspace
-from scipy import fsolve
-from matplotlib.pyplot import plot
+from __future__ import print_function
+from numpy import linspace, logspace, nan, zeros, array, meshgrid
+from scipy.optimize import fsolve
+from matplotlib.pyplot import plot, figure, xlabel, ylabel, draw
+from matplotlib import cm
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from adsorption import *
 
+spec = AdsorptionChillerSpec()
+ctrl = AdsorptionChillerControl()
+chiller = AdsorptionChiller(spec, ctrl)
 
-i = 1;
-
-Ni = 2;
-Nj = 2;
-T_exhaust_range = linspace(313,393,Ni);
-end_t_range = logspace(1,2,Nj);
+Ni, Nj = 2, 3
+T_exhaust_range = linspace(313,393,Ni)
+end_t_range = logspace(2,3,Nj)
 #end_t_range = [240];
 
 #Ni = length(T_exhaust_range);
 #Nj = length(end_t_range);
-q_ref = nan(Ni, Nj);
-q_in = nan(Ni, Nj);
-cop = nan(Ni, Nj);
+q_ref = zeros((Ni, Nj))
+q_in = zeros((Ni, Nj))
+cop = zeros((Ni, Nj))
+T = []
 ##
-T_d0 = 311;
-T_d0 = 325.6137;
+T_d0 = 311
+#T_d0 = 325.6137
 
-for i = 1:Ni
-    t_exhaust = T_exhaust_range(i);
-    for j = Nj:-1:1
-        end_t = end_t_range(j);
-        t = start_t:1:end_t;
-        [T_d0,fval,exitflag,output,jacobian] = fsolve(@(T)(loopOnce(T,t)),T_d0);
-        exitflag
-        output
-        del qad
-        fprintf('T=%f, ',t_exhaust)
-        figure(3); cla
+for i, t_exhaust in enumerate(T_exhaust_range):
+    ctrl.t_exhaust = t_exhaust
+    #for j = Nj:-1:1
+    for j, end_t in enumerate(end_t_range):
+        ctrl.end_t = end_t
+        t = linspace(ctrl.start_t,ctrl.end_t,endpoint=True)
+        #[T_d0,fval,exitflag,output,jacobian] = fsolve(@(T)(loopOnce(T,t)),T_d0);
+        x,infodict,ier,mesg = fsolve(chiller.loopOnce,T_d0,args=(t,),full_output=True)
+        print(mesg)
+        T_d0 = x
+
+        if 'qad' in vars():
+            del qad
+        print('T={}, '.format(t_exhaust))
+        fig=figure(3)
+        fig.clear()
         xlabel('Time(sec)')
-        ylabel('Temperature($$^\circ$$C)');
-        hold on
-        figure(4); cla
-        xlabel('$$T$$ / $$^\circ$$C')
-        ylabel('$$q$$ / (kg/kg)');
-        grid on
-        hold on
+        ylabel('Temperature($^\circ$C)')
+        #hold on
+        fig = figure(4) # cla
+        fig.clear()
+        xlabel('$T$ / $^\circ$C')
+        ylabel('$q$ / (kg/kg)')
+        fig.gca().grid(True)
+        #hold on
 
         #       for t_evap = [283:1:295]
         #       for m_water = [0.1:0.01:0.6]
         
-        dta = 1;
-        myt = 0;
-        #while dta>=1
-        while dta>=1e-3
-            [ty, qy] = desorption9(t, T_d0);
-            figure(3); plot(myt + t,ty-273.15,'r'); drawnow
+        dta = 1
+        myt = 0
+        for k in range(5):
+        #while dta>=1:
+        #while dta>=1e-3:
+            ty, qy = chiller.desorption9(t, T_d0)
+            fig=figure(3)
+            plot(myt + t,ty-273.15,'r')
+            draw()
+            #fig.canvas.flush_events()
             figure(4);
-            if exist('qad','var')
-                plot([tad(end),ty(1)]-273.15,[qad(end),qy(1)],'o-');
-            end
-            plot(ty-273.15,qy,'r'); drawnow
-            myt = myt + end_t;
-            T_d1 = ty(end);
-            q_d1 = freundlich(t_cond, T_d1);
-            P_a0 = wsr4t2p(t_evap) / ((q_d1 / xo) ^ n);
-            T_a0 = wsr4p2t(P_a0);
-            q_a0 = q_d1;
+            if 'qad' in vars():
+                # There was a compression step
+                # Continue plot from previous adsorption step
+                plot(K2C(array([tad[-1],ty[0]])),[qad[-1],qy[0]],'o-');
+            plot(ty-273.15,qy,'r'); draw()
+            myt = myt + end_t
+            T_d1 = ty[-1]
+            q_d1 = chiller.f.Q(ctrl.t_cond, T_d1)
+            P_a0 = wsr4t2p(ctrl.t_evap) / ((q_d1 / spec.xo) ** spec.n)
+            T_a0 = wsr4p2t(P_a0)
+            q_a0 = q_d1
 
-            [tad, qad] = adsorption9(t, T_a0);
-            T_a1 = tad(end);
-            q_a1 = freundlich(t_evap, T_a1);
-            P_d0 = wsr4t2p(t_cond) / ((q_a1 / xo) ^ n);
-            T_d0_new = wsr4p2t(P_d0);
+            tad, qad = chiller.adsorption9(t, T_a0)
+            T_a1 = tad[-1]
+            q_a1 = chiller.f.Q(ctrl.t_evap, T_a1);
+            P_d0 = wsr4t2p(ctrl.t_cond) / ((q_a1 / spec.xo) ** spec.n)
+            T_d0_new = wsr4p2t(P_d0)
 
-            figure(3); plot(myt + t,tad-273.15,'b'); drawnow
-            figure(4); plot([T_d1,T_a0]-273.15,[q_d1,q_a0],'o-');
-            plot(tad-273.15,qad,'b'); drawnow
-            myt = myt + end_t;
+            figure(3); plot(myt + t,K2C(tad),'b'); draw()
+            figure(4); plot(K2C(array([T_d1,T_a0])),[q_d1,q_a0],'o-')
+            plot(K2C(tad),qad,'b'); draw()
+            myt = myt + end_t
 
-            dta = abs(T_d0 - T_d0_new);
-            T_d0 = T_d0_new;
-        end
+            dta = abs(T_d0 - T_d0_new)
+            T_d0 = T_d0_new
+            
         plot(T_a1-273.15,q_a1,'o')
 
-        x_dil=q_d1;
-        x_conc=q_a1;
-        m_ref = ((x_conc - x_dil)*m2)/(end_t);
-        pe = wsr4t2p(t_evap);
+        x_dil=q_d1
+        x_conc=q_a1
+        q_ref_this, q_in_this, cop_this, m_ref = chiller.afterSolve(x_dil, x_conc, 0.5*end_t)
+        pe = wsr4t2p(ctrl.t_evap)
 
-        q_ref(i,j) = m_ref*(WaterTQ2H(t_evap,1) - WaterTQ2H(t_cond,0));
-        q_in(i,j) = (m_ref*hads) + ((m2*(c2+x_conc*cw) +m1*c1) *(T_d1 - T_a1)/end_t);
-        if q_ref(i,j)<0
-            q_ref(i,j)=0;
-        end
-        cop(i,j)=q_ref(i,j)/q_in(i,j);
-        fprintf('%f, %f\n',cop(i,j),q_ref(i,j))
-        T(i) = t_exhaust - 273;
+        q_ref[i,j] = q_ref_this
+        q_in[i,j] = q_in_this
+        cop[i,j] = cop_this
+        print('{}, {}\n'.format(cop[i,j],q_ref[i,j]))
+        #raw_input("Please press [Enter] to proceed")
+        plt.show()
         
-        #             TF(i) = (T(i) * (9/5)) + 32;
-        #             m(i) = m_water;
-        #           Te(i) = t_evap - 273;
-        #             Tc(i) = t_cool - 273;
-        #             time(i) = end_t*2;
-        
-    end
-end
+T = K2C(T_exhaust_range)
 
-##
-figure(7)
-set(gca,'dataaspectratio',[1 1 0.5],'projection','perspective','box','on')
+# <codecell>
+fig=figure(7)
+#set(gca,'dataaspectratio',[1, 1, 0.5],'projection','perspective','box','on')
+ax = fig.add_subplot(111,projection='3d')
 
-[X,Y]=ndgrid(T_exhaust_range,end_t_range);
-mesh(X,Y,q_ref)
-xlabel('Hot Water Temperature, $$T$$ ($$^\circ$$C)')
-ylabel('Half cycle time, $$t/2$$')
-zlabel('Cooling capacity, kW')
-h = rotate3d;
-set(h,'ActionPostCallback',@align_axislabels)
-set(gca,'DataAspectRatio', get(gca,'DataAspectRatio'))
+[X,Y]=meshgrid(T,end_t_range,indexing='ij');
+surf=ax.plot_surface(X,Y,q_ref, cmap=cm.viridis, rstride=1, cstride=1)
+xlabel('Hot Water Temperature, $T$ ($^\circ$C)')
+ylabel('Half cycle time, $t/2$')
+ax.set_zlabel('Cooling capacity, kW')
+fig.colorbar(surf, shrink=0.5, aspect=5)
+# Not necessary in matplotlib
+#set(h,'ActionPostCallback',@align_axislabels)
+#set(gca,'DataAspectRatio', get(gca,'DataAspectRatio'))
 
 figure(1)
-plot(T ,q_ref,'k-'),xlabel('Hot Water Temperature ($$^\circ$$C)'),ylabel('Refrigeration Capacity(kW)')
+plot(T ,q_ref,'k-'),xlabel('Hot Water Temperature ($^\circ$C)'),ylabel('Refrigeration Capacity(kW)')
 figure(2)
-plot(T ,cop,'k-'),xlabel('Hot Water Temperature ($$^\circ$$C)'),ylabel('COP')
+plot(T ,cop,'k-'),xlabel('Hot Water Temperature ($^\circ$C)'),ylabel('COP')
 
-figure(5)
-[hAx,hLine1,hLine2] = plotyy(T,q_ref,T,cop);
-xlabel('Hot Water Temperature ($$^\circ$$C)')
-ylabel(hAx(1),'Refrigeration Capacity (kW)') # left y-axis
-ylabel(hAx(2),'COP') # right y-axis
-hLine1.LineStyle = ':';
-hLine2.LineStyle = ':';
-hLine1.Marker = 'o';
-hLine2.Marker = 's';
-hAx(1).YLim=[0,21];
-hAx(1).YTickMode='auto';
-hAx(2).YLim=[0,1.4];
-hAx(2).YTickMode='auto';
+fig, ax1 = plt.subplots()
+ax2 = ax1.twinx()
+#plotyy(T,q_ref,T,cop);
+ax1.plot(T,q_ref,'o:')
+ax2.plot(T,cop,'s:')
+ax1.set_xlabel('Hot Water Temperature ($^\circ$C)')
+ax1.set_ylabel('Refrigeration Capacity (kW)') # left y-axis
+ax2.set_ylabel('COP') # right y-axis
+
+ax1.set_ylim([0,21])
+#ax1.YTickMode='auto';
+ax2.set_ylim([0,1.4])
+#hAx(2).YTickMode='auto';
+
+plt.show()
