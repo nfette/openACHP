@@ -5,7 +5,6 @@ Created on Tue Feb 17 11:36:55 2015
 @author: nfette
 """
 
-from __future__ import print_function
 import ees_interface
 from collections import namedtuple
 import sys
@@ -28,10 +27,10 @@ State = namedtuple('State',standardOutvars)
 StateType = np.dtype(dict(names=standardOutvars,formats='f'*8))
 
 def splitCode1(code):
-    return [code / 100, code / 10 % 10, code % 10]
+    return [code // 100, code // 10 % 10, code % 10]
 
 def splitCode0(code):
-    return (code / 100 - 1, code / 10 % 10 - 1, code % 10 - 1)
+    return (code // 100 - 1, code // 10 % 10 - 1, code % 10 - 1)
 for code in availableCodes:
     inputs = [standardOutvars[i] for i in splitCode0(code)]
     availableCodeStringsForward[code] = inputs
@@ -184,7 +183,7 @@ class AmmoniaProps:
         s,vals = self.mydll.call("",args)
         if s:
             print(vals)
-            raise ValueError(s)    
+            raise KeyError(s)
         
         if out:
             return vals[standardOutvars.index(out)]
@@ -231,7 +230,12 @@ if __name__ == "__main__":
     print(myprops.props2(T=450, P=10, x=0.5))
     try:
         print(myprops.props('TPu')(450, 10, 0.5))
-    except Exception as e:
+    except KeyError as e:
         print(e.__repr__())
-    print(myprops.props2(T=450, P=10, u=0.5))
+        
+    try:
+        print(myprops.props2(T=450, P=10, u=0.5))
+    except KeyError as e:
+        print(e.__repr__())
+        print("Successfully caught error.")
 

@@ -16,8 +16,8 @@ class AdsorptionChillerSpec(object):
     a_hex = area of adsorber heat exchanger (m^2)
     cpv = specific heat of the refrigerant vapor from the evaporator
     cw = specific heat for the refrigerant( or exhaust water)
-    c1 = specific heat for the metallic adsorber
-    c2 = specific heat for the adsorbent(silica gel)
+    c1 = specific heat for the metallic adsorber (am)
+    c2 = specific heat for the adsorbent (eg. silica gel) (ad)
     hads = heat of adsorption and desorption
     m1 = mass of the metallic part of the adsorber
     m2 = mass of the adsorbent
@@ -369,8 +369,14 @@ class AdsorptionChiller(object):
         t_exhaust = self.ctrl.t_exhaust
         
         # TODO: extract pressure fit and mass ratio functions.
-        tdot = (m_water * cw * (t_exhaust - ty) * (1 - exp((-u_des * a_hex) / (m_water * cw)))) / ((m2 * (c2 + (xo * ((wsr4t2p(t_cond) / wsr4t2p(ty)) ** (1 / n)) * cw)) + m1 * c1) \
-            + m2 * hads * (xo * ((wsr4t2p(t_cond) / wsr4t2p(ty)) ** (1 / n)) * ((0.7146 * ty ** 2 - 433.4 * ty + 65953) / (n * wsr4t2p(ty)))));
+        NTU = (-u_des * a_hex) / (m_water * cw)
+        epsilon = 1. - exp(-NTU)
+        Qdot = epsilon * m_water * cw * (t_exhaust - ty)
+        q = self.f.Q(t_cond, ty)
+        term1 = m1 * c1 + m2 * (c2 + q * cw)
+        term2 = m2 * hads * (xo * ((wsr4t2p(t_cond) / wsr4t2p(ty)) ** (1 / n)) \
+            * ((0.7146 * ty ** 2 - 433.4 * ty + 65953) / (n * wsr4t2p(ty))))
+        tdot = Qdot / (term1 + term2)
         
         return tdot
         

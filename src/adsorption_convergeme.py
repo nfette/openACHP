@@ -202,7 +202,7 @@ if __name__ == "__main__":
     ctrl = AdsorptionChillerControl()
     chiller = AdsorptionChiller(spec, ctrl)
     
-    Ni = 21;
+    Ni = 5;
     T_exhaust_range = linspace(313,393,Ni);
     tt_d = zeros(Ni)
     tt_e = zeros(Ni)

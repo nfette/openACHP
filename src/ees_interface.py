@@ -43,8 +43,8 @@ def EesParamRec2List(rec):
     return res
 
 def List2EesParamRec(listin):
-    # Create all the nodes, defaulting to null next pointer
-    recs = map(EesParamRec, listin)
+    # Create all the record nodes, defaulting to null next pointer
+    recs = [EesParamRec(node) for node in listin]
     # Now set the next pointers
     for i in range(len(recs)-1):
         recs[i].next = ctypes.pointer(recs[i+1])
@@ -69,8 +69,8 @@ class EES_DLP:
                        ctypes.POINTER(EesParamRec), ctypes.POINTER(EesParamRec)]
 
     def wrapper(self, s, intmode, inarglist):
-        strdata = EesStringData(" ")
-        strdata.raw = "{:256}".format(s)
+        strdata = EesStringData(b' ')
+        strdata.raw = bytes(s, 'ascii')
         intmode = ctypes.c_int(intmode)
         inargs = List2EesParamRec(inarglist)
         outargs = List2EesParamRec(range(8))
@@ -81,14 +81,14 @@ class EES_DLP:
         
     def getCallFormat(self,S="",inarglist=[0]):
         callFormat,_ = self.wrapper(S,mode.getCallFormat,inarglist)
-        invars,outvars = callFormat.split('(')[1].split(')')[0].split(':')
-        invars = map(str.strip,invars.split(','))
-        outvars = map(str.strip,outvars.split(','))
+        invars,outvars = callFormat.split(b'(')[1].split(b')')[0].split(b':')
+        invars = [s.strip() for s in invars.split(b',')]
+        outvars = [s.strip() for s in outvars.split(b',')]
         return callFormat, invars, outvars
     def getInputUnits(self,S="",inarglist=[0]):
-        return self.wrapper(S,mode.getInputUnits,inarglist)[0].split(',')
+        return self.wrapper(S,mode.getInputUnits,inarglist)[0].split(b',')
     def getOutputUnits(self,S="",inarglist=[0]):
-        return self.wrapper(S,mode.getOutputUnits,inarglist)[0].split(',')
+        return self.wrapper(S,mode.getOutputUnits,inarglist)[0].split(b',')
     def call(self,S,inarglist):
         return self.wrapper(S,mode.call,inarglist)
         

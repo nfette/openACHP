@@ -13,22 +13,20 @@ from hw2_1 import KelvinToCelsius as K2C
 import tabulate
 import numpy as np
 import scipy.interpolate
-import mesh
-import exceptions
 import HRHX_integral_model
 
 from ammonia_props import AmmoniaProps, StateType, State
 
 amm = AmmoniaProps()
 
-class stateIterator(object):
+class stateIterator:
     def __init__(self,chiller):
         self.chiller=chiller
         self.i = iter(chiller.points)
     def __iter__(self):
         return self
-    def next(self):
-        return self.chiller.__getattribute__(self.i.next())
+    def __next__(self):
+        return self.chiller.__getattribute__(self.i.__next__())
 
 class AmmoniaAbsorberStream(object):
     """TODO: Account for non-saturated solution inlet."""
@@ -103,7 +101,7 @@ class AmmoniaAbsorberStream(object):
                 q_points.append(q)
                 T_points.append(t)
             except:
-                print "[{}] x = {}: Unable to converge in NH3H2O".format(i,x)
+                print("[{}] x = {}: Unable to converge in NH3H2O".format(i,x))
                 break
         self.q = scipy.interpolate.PchipInterpolator(T_points[::-1], q_points[::-1])
         self.T = scipy.interpolate.PchipInterpolator(q_points[::-1], T_points[::-1])
@@ -132,10 +130,10 @@ class AmmoniaAbsorberStream(object):
         m_refrig = m_weak * (x_weak - x_rich) / (x_rich - x_refrig) 
         
         local_state = amm.props2(P=self.weak_inlet.P,Qu=0,x=x_local)
-        #print local_state
+        #print(local_state)
         Q = self.q_pre + m_rich * local_state.h - m_weak * self.sat_inlet.h \
             - m_refrig * self.refrig_inlet.h
-        #print m_refrig,m_rich,Q,local_state.T
+        #print(m_refrig,m_rich,Q,local_state.T)
         return Q,local_state.T
 
 class AmmoniaGeneratorStream(object):
@@ -198,7 +196,7 @@ class AmmoniaGeneratorStream(object):
             
         elif self.rich_inlet.isSuperheated():
             # By design, this should not happen! Just use a rectifier.
-            raise exceptions.ValueError("Generator inlet was superheated.")
+            raise ValueError("Generator inlet was superheated.")
         else:
             # Already have some vapor, so we can separate it.
             # It will go into the rectifier. Assume:
@@ -215,9 +213,9 @@ class AmmoniaGeneratorStream(object):
             q_points.append(q)
             T_points.append(t)
             x_points.append(x)
-            #except exceptions.StandardError as e:
-            #    print "[{}] x = {}: Unable to converge in NH3H2O".format(i,x)
-            #    print e
+            #except StandardError as e:
+            #    print("[{}] x = {}: Unable to converge in NH3H2O".format(i,x))
+            #    print(e)
             #    break
         
         self.q = scipy.interpolate.PchipInterpolator(T_points, q_points)
@@ -236,9 +234,9 @@ class AmmoniaGeneratorStream(object):
             q_vals = self.q(T_range)
             plt.plot(q_vals,T_range,'--')
             plt.show()
-            print tabulate.tabulate(zip(q_points,T_points,x_points),
-                "q T x".split())
-            print np.diff(T_points) < 0
+            print(tabulate.tabulate(zip(q_points,T_points,x_points),
+                "q T x".split()))
+            print(np.diff(T_points) < 0)
             
     def _x(self,z_local):
         # Input z_local is the ammonia mass fraction in the liquid phase.
@@ -304,16 +302,16 @@ class AmmoniaRefluxStream(object):
         self.T = scipy.interpolate.PchipInterpolator(q_points, T_points)
         
         if debug:
-            print "Rectifier"
-            print "vapor_inlet = ", self.vapor_inlet
-            print "liquid_outliet = ", self.liquid_outlet
-            print "m_net, x_net = ", self.m_net, self.x_net
-            print tabulate.tabulate(zip(q_points,T_points),["q / kW"," T / K"])
+            print("Rectifier")
+            print("vapor_inlet = ", self.vapor_inlet)
+            print("liquid_outliet = ", self.liquid_outlet)
+            print("m_net, x_net = ", self.m_net, self.x_net)
+            print(tabulate.tabulate(zip(q_points,T_points),["q / kW"," T / K"]))
         
     def _x(self,z_local):
         # Input z_local is the ammonia mass fraction in the liquid phase.
         liquid,vapor = amm.equilibriumStates2(self.vapor_inlet.P,z_local)
-        #print liquid, vapor
+        #print(liquid, vapor)
         # Determine the amount of refrigerant vaporized and local states.
         x_net = self.x_net
         m_net = self.m_net
@@ -793,9 +791,9 @@ def plotStream(stream, qrange, Trange):
 
 def main():
     a = AmmoniaChiller()
-    print a
+    print(a)
     a.update()
-    print a
+    print(a)
     a.display()
     return a
     
