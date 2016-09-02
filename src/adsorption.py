@@ -34,17 +34,6 @@ class AdsorptionChillerSpec(object):
     or
     x_conc = adsorption capacity at the end of the isobaric adsorption
     x_dil = adsorption capacity at the end of the isobaric desorption
-    
-    These are system inputs:
-    t_cond = temperature of the cooling water in the condensor
-    t_cool = temperature of the cooling water in the adsorber
-    t_evap = temperature of the cooling water in the evaporator
-    t_exhaust = temperature of the waste water
-    
-    These are system outputs:
-    cop = coefficient of performance
-    q_in = heat input by the exhaust water
-    q_ref = refrigeration capacity    
     """
     def __init__(self,
         a_hex = 3.,       # m^2
@@ -81,6 +70,12 @@ class AdsorptionChillerSpec(object):
         self.xo = xo
 
 class AdsorptionChillerControl(object):
+    """These are system inputs:
+    t_cond = temperature of the cooling water into the condensor
+    t_cool = temperature of the cooling water into the adsorber
+    t_evap = temperature of the cooling water into the evaporator
+    t_exhaust = temperature of the waste water into the desorber"""
+    
     def __init__(self,
         start_t = 0.,     # s
         end_t = 240.,     # s
@@ -98,6 +93,11 @@ class AdsorptionChillerControl(object):
         self.t_exhaust = t_exhaust
         
 class AdsorptionChiller(object):
+    """These are system outputs:
+    cop = coefficient of performance
+    q_in = heat input by the exhaust water
+    q_ref = refrigeration capacity"""
+    
     def __init__(self, spec, ctrl):
         self.spec = spec
         self.ctrl = ctrl
@@ -341,6 +341,7 @@ class AdsorptionChiller(object):
     
     def equation29(self, y, t0=None):
         """Returns the time derivative of temperature during desorption.
+        Assumes a heat exchanger like process.
         
         Args:
             y : float
@@ -368,14 +369,13 @@ class AdsorptionChiller(object):
         t_cond = self.ctrl.t_cond
         t_exhaust = self.ctrl.t_exhaust
         
-        # TODO: extract pressure fit and mass ratio functions.
-        NTU = (-u_des * a_hex) / (m_water * cw)
+        NTU = (u_des * a_hex) / (m_water * cw)
         epsilon = 1. - exp(-NTU)
         Qdot = epsilon * m_water * cw * (t_exhaust - ty)
         q = self.f.Q(t_cond, ty)
         term1 = m1 * c1 + m2 * (c2 + q * cw)
-        term2 = m2 * hads * (xo * ((wsr4t2p(t_cond) / wsr4t2p(ty)) ** (1 / n)) \
-            * ((0.7146 * ty ** 2 - 433.4 * ty + 65953) / (n * wsr4t2p(ty))))
+        dPdT = 0.7146 * ty ** 2 - 433.4 * ty + 65953
+        term2 = m2 * hads * q * dPdT / (n * wsr4t2p(ty))
         tdot = Qdot / (term1 + term2)
         
         return tdot
@@ -424,9 +424,15 @@ class AdsorptionChiller(object):
         t_evap = self.ctrl.t_evap
         t_cool = self.ctrl.t_cool
         
-        Tdot1 = (m_cool * cw * (t_cool - tad) * (1 - exp((-u_ads * a_hex) / (m_cool * cw)))) \
-            / ((m2 * (c2 + (xo * ((wsr4t2p(t_evap) / wsr4t2p(tad)) ** (1 / n)) * cw)) + m1 * c1) \
-            + m2 * (hads + (cpv * (t_evap - tad))) * (xo * ((wsr4t2p(t_evap) / wsr4t2p(tad)) ** (1 / n)) * ((0.7146 * tad ** 2 - 433.4 * tad + 65953)/(n * wsr4t2p(tad)))));
+        NTU = (u_ads * a_hex) / (m_cool * cw)
+        epsilon = (1 - exp(-NTU))
+        Qdot = (m_cool * cw * (t_cool - tad) * epsilon)
+        #q = xo * ((wsr4t2p(t_evap) / wsr4t2p(tad)) ** (1 / n))
+        q = self.f.Q(t_evap, tad)
+        dPdT = (0.7146 * tad ** 2 - 433.4 * tad + 65953)
+        term1 = m1 * c1 + m2 * (c2 + q * cw)
+        term2 = m2 * (hads + cpv * (t_evap - tad)) * q * dPdT / (n * wsr4t2p(tad))
+        Tdot1 = Qdot / (term1 + term2)
         
         return Tdot1
         

@@ -18,7 +18,7 @@ import libr_props, libr_props2
 import HRHX_integral_model
 
 water = 'HEOS::Water'
-librname = lambda(x): 'INCOMP::LiBr[{}]'.format(x)
+librname = lambda x: 'INCOMP::LiBr[{}]'.format(x)
 pwater = CP.AbstractState("HEOS","water")
 
 pointType = np.dtype(dict(names="name m x T p Q h D C".split(),formats=['S32']+['d']*8))
@@ -191,7 +191,7 @@ class GeneratorLiBr(object):
         return q1
         
     def _T_helper(self,q,Tguess):
-        func = lambda(T):self._q_helper(T)-q
+        func = lambda T:self._q_helper(T)-q
         sol = fsolve(func, Tguess)
         return sol[0]
         
@@ -259,13 +259,13 @@ class GeneratorLiBr(object):
         
 class GeneratorLiBrInterpolated(GeneratorLiBr):
     def __init__(self, P, m_in, T_in, x_in, x_out, debug=False):
-        print "I am still alive!"
+        print("I am still alive!")
         self.update(P, m_in, T_in, x_in, x_out)
         TT = np.linspace(self.T_in,self.Tmax,100)
         qfunc = np.vectorize(self._q)
         qq = qfunc(TT)
         if np.isnan(qq).any():
-            print "There is a problem with some nans"
+            print("There is a problem with some nans")
 
         # Create extended domain such that interpolate saturates at endpoints.        
         qq1 = np.resize(qq,qq.size+1)
@@ -273,7 +273,7 @@ class GeneratorLiBrInterpolated(GeneratorLiBr):
         qq1[-1] = qq1[-2]
         TT1[-1] = TT1[-2] + 1
         if (np.diff(qq1) < 0).any():
-            print "Captain, it's a non-monotonic function!"        
+            print("Captain, it's a non-monotonic function!")
         self.q = PchipInterpolator(TT1,qq1,extrapolate=True)
         
         # Need to use fresh arrays because they are referenced.
@@ -285,8 +285,8 @@ class GeneratorLiBrInterpolated(GeneratorLiBr):
 
         # Show that it worked
         if debug:
-            print tabulate.tabulate(zip(TT1,qq1))
-            print tabulate.tabulate(zip(TT2,qq2))
+            print(tabulate.tabulate(zip(TT1,qq1)))
+            print(tabulate.tabulate(zip(TT2,qq2)))
             import matplotlib.pyplot as plt
             plt.figure()                
             plt.plot(TT1,qq1,'.'); plt.title("qqmod vs TTmod for q()")
@@ -378,9 +378,9 @@ class AbsorberLiBr1(object):
             import matplotlib.pyplot as plt
             import tabulate
             xmod = np.resize(x_points,len(x_points)+1)
-            print tabulate.tabulate(zip(xmod,T_points1,q_points1,
+            print(tabulate.tabulate(zip(xmod,T_points1,q_points1,
                                     T_points2,q_points2),
-                                    headers=['x','T1','q1','T2','q2'])
+                                    headers=['x','T1','q1','T2','q2']))
             plt.figure(); plt.plot(T_points1,q_points1); plt.title("q(T)")
             plt.figure(); plt.plot(q_points2,T_points2); plt.title("T(q)")
         # Interpolate data must be in increasing order, so we reverse it
@@ -925,7 +925,7 @@ evap_outlet""".split('\n')
         none""".split()
         vartable = tabulate.tabulate(zip(names,vals,units))
         statetable = tabulate.tabulate(self.stateTable,pointType.names)
-        return vartable + "\n" + statetable
+        return vartable + "\nComing soon ...\n" + statetable
         
 def main():
     if True:
@@ -940,13 +940,13 @@ def main():
         c.x1=libr_props2.Xsat(32.7,c.P_evap)
         # Custom example
         c = ChillerLiBr1(T_evap=5,T_cond=45,x1=0.6026,x2=0.66)
-        print "Initializing..."
-        print c
-        print "Iterating..."
+        print("Initializing...")
+        print(c)
+        print("Iterating...")
         try:
             c.iterate1()
         finally:
-            print c
+            print(c)
         
     if True:
         # Figure 6.3 in the book

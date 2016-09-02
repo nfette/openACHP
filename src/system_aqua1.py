@@ -116,9 +116,9 @@ class Problem(object):
         Q,cons = self.lookup(x)
         return cons[i]
     def lookup(self,x):
-        #print "Looking up {}".format(x)
+        print("Looking up {}".format(x))
         x.flags.writeable = False
-        h = hash(x.data)
+        h = hash(x.data.tobytes())
         x.flags.writeable = True
         #print "Hashed x to {}".format(h)
         if h in self.output:
@@ -146,17 +146,17 @@ def main():
       285,4,
       305,0.15]
     bdry = makeBoundary(xB0)
-    print bdry
+    print(bdry)
     # Chiller
     xC0 = np.array((0.40, 278.45, 311.85, 313.65, 310.15, 374.15))
     xC0 = np.array([   0.51284472,  277.97717012,  312.16427764,  313.6952877 ,
         310.24856734,  374.14020482])
 
     ch = makeChiller(xC0)
-    print ch
+    print(ch)
     # System
     sys = System(bdry,ch)
-    print sys
+    print(sys)
     sys.display()
     return bdry, xC0, ch, sys
     
@@ -165,10 +165,10 @@ if __name__ == "__main__":
     p = Problem(bdry, 100)
     opt = scipy.optimize.minimize(p.objective, xC0, constraints=p.constraints,
                                   method="COBYLA", options={"rhobeg":0.01})
-    print opt
+    print(opt)
     xC1 = opt.x
     ch1 = makeChiller(xC1)
-    print ch1
+    print(ch1)
     sys1= System(bdry,ch1)
-    print sys1
+    print(sys1)
     sys.display()

@@ -7,10 +7,8 @@ Created on Wed May 25 19:54:52 2016
 import scipy.integrate
 import scipy.optimize
 import scipy.interpolate
-#import matplotlib.pyplot as plt
 import numpy as np
 from hw2_1 import CelsiusToKelvin as C2K, KelvinToCelsius as K2C
-from exceptions import ValueError
 
 class stream(object):
     def setQ(self,Q):
@@ -147,7 +145,7 @@ class waterStreamInterpolated(waterStream):
     so the streamExample2 is insufficient to represent this case."""
     def __init__(self,P,h_in,mdot,Q_design,fluid='water'):
         s = super(waterStreamInterpolated,self)
-        #print s
+        #print(s)
         s.__init__(P,h_in,mdot,fluid)
         self.Q_design = Q_design
         q_points1 = np.linspace(0,Q_design*1.1,100)
@@ -218,8 +216,8 @@ class counterflow_integrator(object):
         self.hot = hot
         self.useHotT = useHotT
         # Functions for Qmax
-        self.func1 = lambda(Q):Q+self.cold.q(self.hot.T(-Q))
-        self.func2 = lambda(Q):Q-self.hot.q(self.cold.T(Q))
+        self.func1 = lambda Q: Q+self.cold.q(self.hot.T(-Q))
+        self.func2 = lambda Q: Q-self.hot.q(self.cold.T(Q))
         
         if initQmax:
             self.calcQmax()
@@ -228,9 +226,9 @@ class counterflow_integrator(object):
             
     def calcUA(self,Q,eff=False):
         # OLD
-        #func = lambda(q):1./(self.hot.T(Q-q)-self.cold.T(q))
+        #func = lambda q: 1./(self.hot.T(Q-q)-self.cold.T(q))
         # Q > is total heat transferred into cold stream, and q is local cum.
-        func = lambda(q):1./(self.hot.T(q-Q)-self.cold.T(q))
+        func = lambda q: 1./(self.hot.T(q-Q)-self.cold.T(q))
         ua = scipy.integrate.quad(func,0,Q)[0]
         epsilon = Q / self.Qmax
         if epsilon > 1:
@@ -241,33 +239,33 @@ class counterflow_integrator(object):
         else:
             return ua
     def calcQ(self,UA):
-        func = lambda(Q):(self.calcUA(Q)-UA)**2
+        func = lambda Q:(self.calcUA(Q)-UA)**2
         constraints = [{"type":"ineq",
-                       "fun":lambda(Q):Q},
+                       "fun":lambda Q: Q},
                         {"type":"ineq",
-                       "fun":lambda(Q):self.Qmax-Q}]
+                       "fun":lambda Q: self.Qmax-Q}]
         return scipy.optimize.minimize(func,0,constraints=constraints).x[0]
     def calcQmax(self,extra=False,brute=False):
         # Preliminary Max Q based on inlet temperatures only
         qc = min(self.func1(0),self.func2(0))
-        #print "qc = ",qc
-        lim = lambda(Q):qc-Q
+        #print("qc = ",qc)
+        lim = lambda Q: qc-Q
         constraints = [{"type":"ineq",
-                       "fun":lambda(Q):Q,
-                       "jac":lambda(Q):1},
+                       "fun":lambda Q: Q,
+                       "jac":lambda Q: 1},
                        {"type":"ineq",
                         "fun":lim,
-                        "jac":lambda(Q):-1}]
+                        "jac":lambda Q: -1}]
         if brute:
             opt1 = scipy.optimize.differential_evolution(self.func1,[(0,qc)])
             opt2 = scipy.optimize.differential_evolution(self.func2,[(0,qc)])
-            #print opt1
-            #print opt2
+            #print(opt1)
+            #print(opt2)
         else:
             opt1 = scipy.optimize.minimize(self.func1,0,constraints=constraints)
             opt2 = scipy.optimize.minimize(self.func2,0,constraints=constraints)
-            #print opt1
-            #print opt2
+            #print(opt1)
+            #print(opt2)
         self.Qmax = min(np.asscalar(opt1.fun),np.asscalar(opt2.fun))
         #self.Qmax = np.asscalar(opt.x)
         if extra:
@@ -286,9 +284,9 @@ class counterflow_integrator(object):
         DeltaT = 0: Pinch point is touching
         DeltaT < 0: The given Q has exceeded Qmax
         """
-        f = lambda(q):self.hot.T(q-Q)-self.cold.T(q)
+        f = lambda q: self.hot.T(q-Q)-self.cold.T(q)
         opt=scipy.optimize.minimize_scalar(f,bounds=(0,Q),method="bounded")
-        #print opt
+        #print(opt)
         return opt.fun
     
     def calcUA2(self,Q):
@@ -297,7 +295,7 @@ class counterflow_integrator(object):
         if DeltaT <= 0:
             UA = np.inf            
         else:
-            func = lambda(q):1./(self.hot.T(q-Q)-self.cold.T(q))
+            func = lambda q: 1./(self.hot.T(q-Q)-self.cold.T(q))
             UA = scipy.integrate.quad(func,0,Q)[0]
         return DeltaT,epsilon,UA
         
@@ -351,9 +349,9 @@ if __name__ == "__main__":
         hot = streamExample1(1,1)
         ci = counterflow_integrator(cold, hot)
         Qmax = ci.Qmax
-        print "Qmax=",Qmax
+        print("Qmax={}".format(Qmax))
         UA=ci.calcUA(Qmax/2)
-        print "UA=",UA
+        print("UA={}".format(UA))
         
         plotFlow(ci)
         plotNN(ci)
@@ -361,7 +359,7 @@ if __name__ == "__main__":
         c2 = streamExample2(-5.,100.,1.,1.,10.)
         h2 = streamExample1(120.,1.5)
         ci2 = counterflow_integrator(c2,h2)
-        print ci2.Qmax
+        print(ci2.Qmax)
         
         plotFlow(ci2)
         plotNN(ci2)
@@ -374,7 +372,7 @@ if __name__ == "__main__":
         ci3 = counterflow_integrator(c3,h3)
         # However, a global optimization finds the correct basin.
         ci3.calcQmax(extra=False,brute=True)
-        print ci3.Qmax
+        print(ci3.Qmax)
         
         plotFlow(ci3)
         plotNN(ci3)

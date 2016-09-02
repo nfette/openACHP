@@ -20,7 +20,6 @@ import libr3
 from HRHX_integral_model import streamExample1 as se1, \
     counterflow_integrator as hxci, \
     plotFlow as plotFlow
-from exceptions import StandardError
 
 
 def makeSystem():
@@ -97,26 +96,26 @@ class system1:
         return HRHX_integral_model.streamExample1(T_in,m,cp)
     
     def objective(self,x):
-        print "Objective: x = {}".format(x)
+        print("Objective: x = {}".format(x))
         mdot,T_evap,T_cond,x1,x2 = x
         try:
             UA=self.calcUA(x)
             Q = self.chiller.Q_evap_heat
-            print " -> Q = {}, UA = {}".format(Q,UA)
+            print(" -> Q = {}, UA = {}".format(Q,UA))
             return -Q
         except:
-            print "An error occurred in calcUA(). Reporting zeros."
+            print("An error occurred in calcUA(). Reporting zeros.")
             return 0
                   
     def constraint1(self,x,UAgoal):
         # Result is zero iff: UA is the given value.
-        print "Constraint1: x={}, UAgoal={}".format(x,UAgoal)
+        print("Constraint1: x={}, UAgoal={}".format(x,UAgoal))
         try:
             UA = self.calcUA(x)
-            print "UA at x = {}".format(UA)
+            print("UA at x = {}".format(UA))
             return UAgoal - UA
         except:
-            print "An error occurred in calcUA(). Reporting zeros."
+            print("An error occurred in calcUA(). Reporting zeros.")
             return 0
 
     def constraint2(self,x):
@@ -169,14 +168,14 @@ class system1:
         UAgoal = 5037.68247933
         
         constraints=[dict(type='ineq',fun=self.constraint1,args=(UAgoal,)),
-                     dict(type='ineq',fun=self.constraint2,jac=lambda(x):[0,0,0,-1,1]),
-                     dict(type='ineq',fun=self.constraint3,jac=lambda(x):[0,-1,1,0,0]),
-                     dict(type='ineq',fun=self.constraint4,jac=lambda(x):[1,0,0,0,0]),
-                     dict(type='ineq',fun=self.constraint5,jac=lambda(x):[0,0,0,1,0]),
-                     dict(type='ineq',fun=self.constraint6,jac=lambda(x):[0,0,0,0,-1]),
-                     dict(type='ineq',fun=self.constraint7,jac=lambda(x):[0,1,0,0,0]),
-                     dict(type='ineq',fun=self.constraint8,jac=lambda(x):[0,0,-1,0,0]),
-                     dict(type='ineq',fun=self.constraint9,jac=lambda(x):[-1,0,0,0,0])
+                     dict(type='ineq',fun=self.constraint2,jac=lambda x:[0,0,0,-1,1]),
+                     dict(type='ineq',fun=self.constraint3,jac=lambda x:[0,-1,1,0,0]),
+                     dict(type='ineq',fun=self.constraint4,jac=lambda x:[1,0,0,0,0]),
+                     dict(type='ineq',fun=self.constraint5,jac=lambda x:[0,0,0,1,0]),
+                     dict(type='ineq',fun=self.constraint6,jac=lambda x:[0,0,0,0,-1]),
+                     dict(type='ineq',fun=self.constraint7,jac=lambda x:[0,1,0,0,0]),
+                     dict(type='ineq',fun=self.constraint8,jac=lambda x:[0,0,-1,0,0]),
+                     dict(type='ineq',fun=self.constraint9,jac=lambda x:[-1,0,0,0,0])
                     ]
                 
         opt = scipy.optimize.minimize(self.objective,x0,constraints=constraints,
@@ -283,7 +282,7 @@ class objectivePair(object):
         self.plot = progressPlot()
     def __call__(self,y):
         x = self.bounds.backward(y)
-        print "objective at x = ", x
+        print("objective at x = ", x)
         self.x.append(x)
         
         try:
@@ -292,17 +291,16 @@ class objectivePair(object):
             p = pair(self.sys, chiller)
             self.plot.updateUA([row[3] for row in p.data])
             result = p.objective(self.UAgoal)
-            print "Returning ", result
+            print("Returning ", result)
             return result
-        except StandardError as e:
-            print e
-            print "Returning zero anyway"
+        except Exception as e:
+            print(e)
+            print("Returning zero anyway")
             return 0
 
 def main():
     import matplotlib.pyplot as plt
     import numpy as np
-    from exceptions import ValueError
     
     sys = makeSystem()
     
@@ -327,8 +325,8 @@ def main():
     chiller = makeChiller(x0)
     
     p = pair(sys,chiller)
-    print p
-    print p.hxs[0][1].cold
+    print(p)
+    print(p.hxs[0][1].cold)
     figs = p.display()
 
     if False:
@@ -340,23 +338,23 @@ def main():
                 x1[0] = mdot
                 ch1 = makeChiller(x1)
                 p1 = pair(sys,ch1)
-                print p1
+                print(p1)
                 plotFlow(p1.hxs[0][1],fig,p1.hxs[0][2])
-            except ValueError as e:
-                print e
+            except Exception as e:
+                print(e)
                 break
     plt.show()
     
     
     op = objectivePair(sys,UAgoal)
     y0 = op.bounds.forward(x0)
-    print y0
+    print(y0)
     try:
         opt = scipy.optimize.minimize(op,y0,
             method='Powell',options=dict(maxftol=0.001,maxfev=100))
         #options=dict(maxiter=10),tol=0.1
-    except StandardError as e:
-        print e
+    except Exception as e:
+        print(e)
         opt = None
         
     return sys, chiller, p, figs, op, opt
@@ -403,11 +401,11 @@ class progressPlot(object):
 
 if __name__ == "__main__":
     sys, chiller, p, figs, op, opt = main()
-    print opt
+    print(opt)
     xopt = op.bounds.backward(opt.x)
-    print xopt
+    print(xopt)
     ch1 = makeChiller(xopt)
     p1 = pair(sys,ch1)
-    print p1
+    print(p1)
     p1.display()
     

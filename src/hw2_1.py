@@ -35,12 +35,10 @@ def COP_cooling_partial_Thi(T_ei, T_ci, T_hi):
     return (-T_ei / T_hi**2) * (T_hi - T_ci) / (T_ci - T_ei) \
         + (T_ei / T_hi) * (1.) / (T_ci - T_ei)
 
-if __name__ == "__main__":
+def main(me,save=False):
     import numpy as np
     import matplotlib.pyplot as plt
-    import matplotlib
-    import inspect
-    me = inspect.getfile(inspect.currentframe())
+    import matplotlib    
     
     plt.close('all')
     matplotlib.rcParams.update({'font.size':11})
@@ -54,7 +52,7 @@ if __name__ == "__main__":
     COPe = COP_cooling_partial_Tei(Tei,Tci,Thi)
     COPc = COP_cooling_partial_Tci(Tei,Tci,Thi)
     COPh = COP_cooling_partial_Thi(Tei,Tci,Thi)
-    print Tei,Tci,Thi, COP, COPe, COPc, COPh
+    print(Tei,Tci,Thi, COP, COPe, COPc, COPh)
     
     DeltaT = np.linspace(-60,60,51)
     TTe = Tei + DeltaT
@@ -73,11 +71,12 @@ if __name__ == "__main__":
     plt.ylabel("Reversible cooling COP")
     plt.legend()
     plt.ylim(0.1,100)
-    #plt.show()
+
+    if save:    
+        plt.savefig('../img/{}.figure{}.png'.format(me,plt.gcf().number))
+    else:
+        plt.show()
     
-    plt.savefig('../img/{}.figure{}.png'.format(me,plt.gcf().number))
-
-
     plt.figure(2)
     
     DeltaT = np.linspace(-59,59,52)
@@ -108,7 +107,13 @@ if __name__ == "__main__":
     plt.ylabel("Reversible cooling COP partial derivative [1/K]")
     plt.legend()
     plt.ylim(-0.2,0.2)
-    #plt.show()
     
-    plt.savefig('../img/{}.figure{}.png'.format(me,plt.gcf().number))
+    if save:
+        plt.savefig('../img/{}.figure{}.png'.format(me,plt.gcf().number))
+    else:
+        plt.show()
     
+if __name__ == "__main__":
+    import os
+    me = os.path.basename(__file__)
+    main(me, save=False)
