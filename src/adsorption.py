@@ -8,8 +8,8 @@ import CoolProp
 #import numpy as np
 from numpy import linspace, exp, log
 import matplotlib.pyplot as plt
-from scipy.integrate import quad, odeint
-from hw2_1 import CelsiusToKelvin as C2K, KelvinToCelsius as K2C
+from scipy.integrate import odeint
+#from hw2_1 import CelsiusToKelvin as C2K, KelvinToCelsius as K2C
 
 class AdsorptionChillerSpec(object):
     """Variables
@@ -41,6 +41,7 @@ class AdsorptionChillerSpec(object):
         c1 = 0.448,      # kJ/kg K
         c2 = 0.92,       # kJ/kg K
         cpv = 1.866,     # kJ/kg K
+        #cpv=0.705,
         hads = 2800.,     # kJ/kg
         m1 = 20.,         # kg
         m2 = 7.,            # kg
@@ -82,7 +83,7 @@ class AdsorptionChillerControl(object):
         t_cool = 300.,    # K
         t_cond = 302.,    # K
         t_evap = 292.,    # K
-        t_exhaust = 313., # K
+        t_exhaust = 363., # K
         ):
         
         self.start_t = start_t
@@ -103,33 +104,83 @@ class AdsorptionChiller(object):
         self.ctrl = ctrl
         self.f = Freundlich(self.spec.xo, self.spec.n)
         
-    def loopOnce(self, T_d0, t):
-        """Given fixed dwell time for desorption and adsorption steps,
+    def loopOnce(self, T_d0, t_des, t_ads, ax1=None, ax2=None, figs=None, start_t=0):
+        """Integrates through one cycle of desorption, (decompression),
+        adsorption, (compression), simplified to just check convergence.
+        
+        Given fixed dwell time for desorption and adsorption steps,
         and temperature at start of desorption step,
         return the change in the temperature from cycle start to end.
+        Optional arguments allow for plotting.
+
+        Args
+        ----
+        T_d0 : float
+            Temperature at start of desorption step
+        t_des : array
+            A sequence of time points to solve for state during integration
+            of desorption
+        t_ads : array
+            A sequence of time points to solve for state during integration
+            of adsorption
+        ax1 : matplotlib.axes (optional)
+            will plot the time series in the given axis
+        ax2 : matplotlib.axes
+            will plot the q vs T series in the given axis
+        figs : matplotlib.figure
+            will flush events (to watch progress of the simulation)
+        start_t : float (optional)
+            for the time series, specifies initial time of the cycle
         
+        Returns
+        -------
+        dTa
+            Temperature change from start of this cycle to next
+        dt
+            Time to complete the entire cycle
+        q_d1
+            Absorbed mass ratio at end of desorption
+        q_a1
+            Absorbed mass ratio at end of adsorption
+            
         Called by solution9."""
         #global t_cond t_evap xo n
         t_cond = self.ctrl.t_cond
         t_evap = self.ctrl.t_evap
-        xo = self.spec.xo
-        n = self.spec.n
         
-        ty, qy = self.desorption9(t, T_d0)
+        ty, qy = self.desorption9(t_des, T_d0)
         T_d1 = ty[-1]
         q_d1 = qy[-1]
-        P_a0 = wsr4t2p(t_evap) / ((q_d1 / xo) ** n)
-        T_a0 = wsr4p2t(P_a0)
+        T_a0 = self.f.T(t_evap, q_d1)
         q_a0 = q_d1
         
-        tad, qad = self.adsorption9(t, T_a0)
+        tad, qad = self.adsorption9(t_ads, T_a0)
         T_a1 = tad[-1]
         q_a1 = qad[-1]
-        P_d0 = wsr4t2p(t_cond) / ((q_a1 / xo) ** n)
-        T_d0_new = wsr4p2t(P_d0)
+        T_d0_new = self.f.T(t_cond, q_a1)
         
         dTa = T_d0_new - T_d0
-        return dTa
+        delta_t_decompress = self.decompress(q_d1)
+        delta_t_compress = self.compress(q_a1)
+        dt = t_des[-1] + delta_t_decompress + t_ads[-1] + delta_t_compress
+        
+        if ax1:
+            ax1.plot(start_t + t_des, ty, 'r')
+            ax1.plot(start_t + t_des[-1] + delta_t_decompress + t_ads, tad, 'b')
+        if ax2:
+            ax2.plot(ty,qy,'r')
+            ax2.plot(tad,qad,'b')
+            ax2.plot([T_d1,T_a0],[q_d1,q_a0],'o-')
+            ax2.plot([T_a1,T_d0_new],[q_a1,q_a1],'o-')
+        if figs:
+            for fig in figs:
+                try:
+                    fig.canvas.draw_idle()
+                    fig.canvas.flush_events()
+                except:
+                    fig.canvas.draw()
+        
+        return dTa, dt, q_d1, q_a1
         
     def afterSolve(self,q_low,q_high,t_cycle):
         """Called by convergeme"""
@@ -174,8 +225,6 @@ class AdsorptionChiller(object):
                 Sequence of adsorbed mass ratio
         """
         #global tg2 n xo t_cond
-        n = self.spec.n
-        xo = self.spec.xo
         t_cond = self.ctrl.t_cond
         
         #[~,ty]=ode45('equation29',t, T_d0)
@@ -208,8 +257,6 @@ class AdsorptionChiller(object):
                 The adsorbed mass ratio.
         """
         #global n xo t_cond
-        n = self.spec.n
-        xo = self.spec.xo
         t_cond = self.ctrl.t_cond
         
         #[~,t]=ode45(@(TT,tt)(1 / equation29(tt,TT)), T, 0);
@@ -236,8 +283,6 @@ class AdsorptionChiller(object):
                 Sequence of adsorbed mass ratio
         """
         #global ta2_n n xo t_evap
-        n = self.spec.n
-        xo = self.spec.xo
         t_evap = self.ctrl.t_evap
         
         #[~,tad]=ode45('equation49',t, T_a0);
@@ -247,7 +292,7 @@ class AdsorptionChiller(object):
         qad = self.f.Q(t_evap, tad)
         
         # Final temperature
-        ta2 = tad[-1]
+        #ta2 = tad[-1]
         
         return tad, qad
 
@@ -255,8 +300,6 @@ class AdsorptionChiller(object):
         """Integrates the equations for isobaric adsorption
         over the given interval of temperature."""
         #global n xo t_evap
-        n = self.spec.n
-        xo = self.spec.xo
         t_evap = self.ctrl.t_evap
         
         #[~,t]=ode45(@(TT,tt)(1 / equation49(tt,TT)), T, 0);
@@ -289,7 +332,7 @@ class AdsorptionChiller(object):
         
         U = u_des
         T0 = self.f.T(t_evap, q)
-        T1 = self.f.T(t_cond, q);
+        T1 = self.f.T(t_cond, q)
         
         NTU = (U * a_hex) / (m_water * cw);
         epsilon = 1 - exp(-NTU);
@@ -362,8 +405,6 @@ class AdsorptionChiller(object):
         hads = self.spec.hads
         m1 = self.spec.m1
         m2 = self.spec.m2
-        n = self.spec.n
-        xo = self.spec.xo
         m_water = self.spec.m_water
         u_des = self.spec.u_des
         t_cond = self.ctrl.t_cond
@@ -374,8 +415,8 @@ class AdsorptionChiller(object):
         Qdot = epsilon * m_water * cw * (t_exhaust - ty)
         q = self.f.Q(t_cond, ty)
         term1 = m1 * c1 + m2 * (c2 + q * cw)
-        dPdT = 0.7146 * ty ** 2 - 433.4 * ty + 65953
-        term2 = m2 * hads * q * dPdT / (n * wsr4t2p(ty))
+        dqdT = self.f.dQdT(t_cond, ty)
+        term2 = m2 * (-hads) * dqdT
         tdot = Qdot / (term1 + term2)
         
         return tdot
@@ -417,21 +458,18 @@ class AdsorptionChiller(object):
         hads = self.spec.hads
         m1 = self.spec.m1
         m2 = self.spec.m2
-        n = self.spec.n
-        xo = self.spec.xo
         m_cool = self.spec.m_cool
         u_ads = self.spec.u_ads
         t_evap = self.ctrl.t_evap
         t_cool = self.ctrl.t_cool
         
         NTU = (u_ads * a_hex) / (m_cool * cw)
-        epsilon = (1 - exp(-NTU))
+        epsilon = (1. - exp(-NTU))
         Qdot = (m_cool * cw * (t_cool - tad) * epsilon)
-        #q = xo * ((wsr4t2p(t_evap) / wsr4t2p(tad)) ** (1 / n))
         q = self.f.Q(t_evap, tad)
-        dPdT = (0.7146 * tad ** 2 - 433.4 * tad + 65953)
+        dqdT = self.f.dQdT(t_evap, tad)
         term1 = m1 * c1 + m2 * (c2 + q * cw)
-        term2 = m2 * (hads + cpv * (t_evap - tad)) * q * dPdT / (n * wsr4t2p(tad))
+        term2 = m2 * ((-hads) + cpv * (t_evap - tad)) * dqdT
         Tdot1 = Qdot / (term1 + term2)
         
         return Tdot1
@@ -464,6 +502,15 @@ class Freundlich(object):
     def P(self, T_sat, q_a):
         P_a = wsr4t2p(T_sat) / ((q_a / self.xo) ** self.n)
         return P_a
+    def dQdT(self,T_sat,T_ads):
+        Psat = wsr4t2p(T_ads)
+        dPdT = (0.7146 * T_ads ** 2 - 433.4 * T_ads + 65953)
+        q = self.Q(T_sat,T_ads)
+        return -q * dPdT / (self.n * Psat)
+    def dQdP(self,T_sat,T_ads):
+        Psat = wsr4t2p(T_sat)
+        q = self.Q(T_sat,T_ads)
+        return q / (self.n * Psat)
 
 def wsr2pt2h(p,t):
     """ WSR2PT2H  Water vapor pressure.
@@ -503,23 +550,20 @@ def main():
     spec = AdsorptionChillerSpec()
     ctrl = AdsorptionChillerControl()
     chiller = AdsorptionChiller(spec, ctrl)
-    t = linspace(0,1000,endpoint=True)
+    t_ads = linspace(0,240,endpoint=True)
+    t_des = linspace(0,240,endpoint=True)
     T_d0 = 300
     myt = 0
+    fig1,(ax1,ax2)=plt.subplots(2,1)
+    ax1.cla()
+    ax2.cla()
     for k in range(5):
-        ty,qy = chiller.desorption9(t,T_d0)
-        delta_t_decompress = chiller.decompress(qy[-1])
-        q_d1 = qy[-1]
-        T_a0 = chiller.f.T(ctrl.t_evap, q_d1)
-        tad,qad = chiller.adsorption9(t,T_a0)
-        delta_t_compress = chiller.compress(qad[-1])
-        plt.plot(myt + t,ty)
-        myt += t[-1] + delta_t_decompress
-        plt.plot(myt+t, tad)
-        myt += t[-1] + delta_t_compress
-        T_d0 = chiller.f.T(ctrl.t_cond, q_d1)
+        dT,dt,_,_ = chiller.loopOnce(T_d0, t_des, t_ads, ax1, ax2, [fig1], myt)
+        myt += dt
+ 
     plt.show()
+    return myt
 
 if __name__ == "__main__":
-    main()
+    myt=main()
     

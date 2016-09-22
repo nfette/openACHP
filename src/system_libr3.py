@@ -21,13 +21,15 @@ from HRHX_integral_model import streamExample1 as se1, \
     counterflow_integrator as hxci, \
     plotFlow as plotFlow
 
-
-def makeSystem():
-    return system1(
-        heatStream=se1(120,0.3,4179),
-        absorberRejectStream=se1(15,1,4179),
-        condRejectStream=se1(35,1,4179),
-        coldStream=se1(12,1,4179))
+def makeBoundary(x):
+    t0,m0,t1,m1,t2,m2,t3,m3 = x
+    # Units: K, kg/s, W/kg-K
+    cp = 4179
+    return Boundary(
+        heatStream=se1(t0, m0, cp),
+        absorberRejectStream=se1(t1, m1, cp),
+        condRejectStream=se1(t2, m2, cp),
+        coldStream=se1(t3, m3, cp))
 
 def makeChiller(x):
     m_pump,T_evap,T_cond,x1,x2 = x
@@ -71,12 +73,21 @@ class varBounds(object):
         e = unmap(d,self.xmax,y[4])
         return [a,b,c,d,e]
         
-class system1:
-    def __init__(self,heatStream,absorberRejectStream,condRejectStream,coldStream):
+class Boundary:
+    def __init__(self,heatStream,absorberRejectStream,
+                 condRejectStream,coldStream):
         self.heatStream = heatStream
         self.absorberRejectStream = absorberRejectStream
         self.condRejectStream = condRejectStream
         self.coldStream = coldStream
+        
+    def __repr__():
+        import tabulate
+        result = []
+        for name in "heatStream absorberRejectStream condRejectStream coldStream".split():
+            stream = self.__getattribute__(name)
+            result.append((name, stream.T_inlet, stream.mdot, stream.cp))
+        return tabulate.tabulate(result,"stream T_inlet mdot cp".split())
         
     def makeColdStream(self,Q):
         # Flow rate for evaporator is specified by inlet and outlet temperature...
@@ -183,34 +194,31 @@ class system1:
                                       options=dict(disp=True,maxiter=10))
         return opt
 
-class pair(object):
-    def __init__(self,sys,chiller):
+class System(object):
+    def __init__(self,boundary,chiller):
         #self.coldStream = self.makeColdStream(chiller.Q_evap_heat)
         #self.absorberRejectStream = self.makeRejectStream(32, 5, chiller.Q_abs_total)
         #self.condRejectStream = self.makeRejectStream(20, 5, chiller.Q_condenser_reject)
-        self.sys = sys
+        self.boundary = boundary
         self.chiller = chiller
         
-        self.hxs = []
-        self.hxs.append(("gen",
-            hxci(chiller.getGeneratorStream(),sys.heatStream,useHotT=True),
-            chiller.Q_gen_total))
-        self.hxs.append(("abs",
-            hxci(sys.absorberRejectStream,chiller.getAbsorberStream()),
-            chiller.Q_abs_total))
-        self.hxs.append(("cond",
-            hxci(sys.condRejectStream,chiller.getCondenserStream()),
-            chiller.Q_condenser_reject))
-        self.hxs.append(("evap",
-            hxci(chiller.getEvaporatorStream(),sys.coldStream),
-            chiller.Q_evap_heat))
+        self.hxs = {}
+        self.Q = {}
+        self.hxs["gen"] = hxci(chiller.getGeneratorStream(),boundary.heatStream,useHotT=True)
+        self.Q["gen"] = chiller.Q_gen_total
+        self.hxs["abs"] = hxci(boundary.absorberRejectStream,chiller.getAbsorberStream())
+        self.Q["abs"] = chiller.Q_abs_total
+        self.hxs["cond"] = hxci(boundary.condRejectStream,chiller.getCondenserStream())
+        self.Q["cond"] = chiller.Q_condenser_reject
+        self.hxs["evap"] = hxci(chiller.getEvaporatorStream(),boundary.coldStream)
+        self.Q["evap"] = chiller.Q_evap_heat
         
         self.data = []
         self.totalUA = 0
-        for name, ci, Q in self.hxs:
-            ci.calcQmax()
-            deltaT, epsilon, UA = ci.calcUA2(Q)
-            self.data.append((name, deltaT, epsilon, UA, Q))
+        for name in self.hxs:
+            self.hxs[name].calcQmax()
+            deltaT, epsilon, UA = self.hxs[name].calcUA2(self.Q[name])
+            self.data.append((name, deltaT, epsilon, UA, self.Q[name]))
             self.totalUA += UA
     
     def __repr__(self):
@@ -221,8 +229,8 @@ class pair(object):
     def display(self):
         import matplotlib.pyplot as plt
         figs = []
-        for name, ci, Q in self.hxs:
-            fig=plotFlow(ci, None, Q)
+        for name in self.hxs:
+            fig=plotFlow(self.hxs[name], None, self.Q[name])
             figs.append(fig)
             fig.gca().set_title(name)
             plt.xlabel("Heat (W)")
@@ -297,12 +305,54 @@ class objectivePair(object):
             print(e)
             print("Returning zero anyway")
             return 0
+            
+class Problem(object):
+    def __init__(self,bdry,UAgoal):
+        self.bdry = bdry
+        self.UAgoal = UAgoal
+        self.input = []
+        self.output = dict()
+        self.constraints=[{'type':'ineq',
+                           'fun':self.constraint,
+                           'args':(i,)} for i in range(11)]
+    def objective(self,x):
+        Q,cons = self.lookup(x)
+        return -Q
+    def constraint(self,x,*args):
+        i,=args
+        Q,cons = self.lookup(x)
+        return cons[i]
+    def lookup(self,x):
+        print("Looking up {}".format(x))
+        x.flags.writeable = False
+        h = hash(x.data.tobytes())
+        x.flags.writeable = True
+        #print "Hashed x to {}".format(h)
+        if h in self.output:
+            return self.output[h]
+        else:
+            self.input.append(x.copy())
+            sys = System(self.bdry,makeChiller(x))
+            Q = sys.chiller.Q_evap_heat
+            # m_pump,T_evap,T_cond,x1,x2 = x
+            cons = [x[0],
+                x[1] - 0,
+                x[2] - x[1],
+                x[3] - 0.4,
+                x[4] - x[3],
+                0.7 - x[4]]
+            for name, deltaT, epsilon, UA, Qhx in sys.data:
+                cons.append(deltaT)
+            cons.append(self.UAgoal - sys.totalUA)
+            self.output[h] = (Q,cons)
+            return Q,cons
 
 def main():
     import matplotlib.pyplot as plt
     import numpy as np
     
-    sys = makeSystem()
+    xB0 = 120., 0.3, 15., 1., 35., 1., 12., 1.    
+    bdry = makeBoundary(xB0)
     
     #x0 = [m_pump, T_evap, T_cond, x1, x2]
     UAgoal = 10000
@@ -321,13 +371,12 @@ def main():
     # 10
     #x0 = [0.00012243761622050806, 1.5744486090660881, 53.296690938447185, 0.53538141034516507, 0.61112929898671542]
 
-
     chiller = makeChiller(x0)
     
-    p = pair(sys,chiller)
-    print(p)
-    print(p.hxs[0][1].cold)
-    figs = p.display()
+    s = System(bdry,chiller)
+    print(s)
+    print(s.hxs["evap"].cold)
+    figs = s.display()
 
     if False:
         fig = plt.figure()
@@ -337,7 +386,7 @@ def main():
                 x1 = x0[:]
                 x1[0] = mdot
                 ch1 = makeChiller(x1)
-                p1 = pair(sys,ch1)
+                p1 = pair(bdry,ch1)
                 print(p1)
                 plotFlow(p1.hxs[0][1],fig,p1.hxs[0][2])
             except Exception as e:
@@ -346,6 +395,7 @@ def main():
     plt.show()
     
     
+    """
     op = objectivePair(sys,UAgoal)
     y0 = op.bounds.forward(x0)
     print(y0)
@@ -357,7 +407,16 @@ def main():
         print(e)
         opt = None
         
-    return sys, chiller, p, figs, op, opt
+    xopt = op.bounds.backward(opt.x)
+    print(opt)    
+    print(xopt)
+    ch1 = makeChiller(xopt)
+    p1 = pair(sys,ch1)
+    print(p1)
+    p1.display()
+    """
+        
+    return bdry, x0, chiller, s
 
 class progressPlot(object):
     def __init__(self):
@@ -400,12 +459,17 @@ class progressPlot(object):
             self.updateUA([row[3] for row in p.data])
 
 if __name__ == "__main__":
-    sys, chiller, p, figs, op, opt = main()
+    bdry, xC0, chiller, sys = main()
+    UAgoal = 1000
+    p = Problem(bdry, UAgoal)
+    opt = scipy.optimize.minimize(p.objective, xC0, constraints=p.constraints,
+                                  method="COBYLA", options={"rhobeg":0.01})
     print(opt)
-    xopt = op.bounds.backward(opt.x)
-    print(xopt)
-    ch1 = makeChiller(xopt)
-    p1 = pair(sys,ch1)
-    print(p1)
-    p1.display()
+    xC1 = opt.x
+    ch1 = makeChiller(xC1)
+    print(ch1)
+    sys1= System(bdry,ch1)
+    print(sys1)
+    sys.display()
     
+    xopt = [1.36281098e-02,1.01011664e+00,5.20701563e+01,5.43979266e-01,6.13435018e-01]
