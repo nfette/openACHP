@@ -13,27 +13,48 @@ from scipy.integrate import odeint
 
 class AdsorptionChillerSpec(object):
     """Variables
-    a_hex = area of adsorber heat exchanger (m^2)
-    cpv = specific heat of the refrigerant vapor from the evaporator
-    cw = specific heat for the refrigerant( or exhaust water)
-    c1 = specific heat for the metallic adsorber (am)
-    c2 = specific heat for the adsorbent (eg. silica gel) (ad)
-    hads = heat of adsorption and desorption
-    m1 = mass of the metallic part of the adsorber
-    m2 = mass of the adsorbent
-    m_cool = mass flow rate of the cooling water
-    m_water = mass flow rate of the waste water
-    m_ref = mass flow rate of the refrigerant
-    n = adsorbent constant
-    xo = maximum adsorption capacity (a constant depends on
-         adsorbent-adsorbate pair)
+    
+    a_hex
+        [m^2] area of adsorber heat exchanger
+    cpv
+        [kJ/kg-K] specific heat of the refrigerant vapor from the evaporator
+    cw
+        [kJ/kg-K] specific heat for the refrigerant( or exhaust water)
+    c1
+        [kJ/kg-K] specific heat for the metallic adsorber (am)
+    c2
+        [kJ/kg-K] specific heat for the adsorbent (eg. silica gel) (ad)
+    hads
+        [kJ/kg] heat of adsorption and desorption
+    m1
+        [kg] mass of the metallic part of the adsorber
+    m2
+        [kg] mass of the adsorbent
+    m_cool
+        [kg/s] mass flow rate of the cooling water
+    m_water
+        [kg/s] mass flow rate of the waste water
+    m_ref
+        [kg/s] mass flow rate of the refrigerant
+    n
+        adsorbent constant
+    xo
+        [kg/kg] maximum adsorption capacity (a constant depends on
+        adsorbent-adsorbate pair)
     
     These are not part of the spec because they are determined by the control:
-    tg2 = temperature at the end of the isobaric desorption
-    ta2 = temperature at the end of the isobaric adsorption
+        
+    tg2
+        [K] temperature at the end of the isobaric desorption
+    ta2
+        [K] temperature at the end of the isobaric adsorption
+        
     or
-    x_conc = adsorption capacity at the end of the isobaric adsorption
-    x_dil = adsorption capacity at the end of the isobaric desorption
+    
+    x_conc
+        [kg/kg] adsorption capacity at the end of the isobaric adsorption
+    x_dil
+        [kg/kg] adsorption capacity at the end of the isobaric desorption
     """
     def __init__(self,
         a_hex = 3.,       # m^2
@@ -72,10 +93,19 @@ class AdsorptionChillerSpec(object):
 
 class AdsorptionChillerControl(object):
     """These are system inputs:
-    t_cond = temperature of the cooling water into the condensor
-    t_cool = temperature of the cooling water into the adsorber
-    t_evap = temperature of the cooling water into the evaporator
-    t_exhaust = temperature of the waste water into the desorber"""
+    
+    start_t 
+        [s] Time at start of the cycle. Mostly useless.
+    end_t (default = 240)
+        [s] Time at end of the cycle.
+    t_cond
+        [K] temperature of the cooling water into the condensor
+    t_cool
+        [K] temperature of the cooling water into the adsorber
+    t_evap
+        [K] temperature of the cooling water into the evaporator
+    t_exhaust
+        [K] temperature of the waste water into the desorber"""
     
     def __init__(self,
         start_t = 0.,     # s
@@ -94,10 +124,31 @@ class AdsorptionChillerControl(object):
         self.t_exhaust = t_exhaust
         
 class AdsorptionChiller(object):
-    """These are system outputs:
-    cop = coefficient of performance
-    q_in = heat input by the exhaust water
-    q_ref = refrigeration capacity"""
+    """AdsorptionChiller provides a basic transient equilibrium model for an
+    two bed adsorption cooling cycle with external heat transfer.
+    
+    Transient
+        There are four (4) steps: desorption, decompression/expansion,
+        adsorption, and compression.
+    Equilibrium
+        The model assumes that the adsorbent is in equilibrium with the
+        refrigerant vapor in the vessel. Thus internal mass and heat transfer
+        resistance are neglected, and the adsorbent is treated as lumped system
+        with uniform temperature (T) and adsorbed mass ratio (q).
+    Heat transfer
+        Heat rates are governed by heat exchanger coefficients in the form
+        of UA values, as well as stream temperature and capacity.
+    
+    Args
+    ----
+    spec
+        An object inheriting AdsorptionChillerSpec that defines the internal
+        parameters of the chiller
+    ctrl
+        An object inheriting AdsorptionChillerCtrl that defines the external
+        boundary conditions and/or controls for the chiller
+    
+    """
     
     def __init__(self, spec, ctrl):
         self.spec = spec
@@ -136,6 +187,7 @@ class AdsorptionChiller(object):
         -------
         dTa
             Temperature change from start of this cycle to next
+            (useful to check for for convergence)
         dt
             Time to complete the entire cycle
         q_d1
@@ -183,7 +235,29 @@ class AdsorptionChiller(object):
         return dTa, dt, q_d1, q_a1
         
     def afterSolve(self,q_low,q_high,t_cycle):
-        """Called by convergeme"""
+        """After transient simulation has converged, call this method to obtain
+        time-averaged performance metrics. Assumes two beds are active.
+        
+        Args
+        ----
+        q_low
+            [kg/kg] Absorbed mass ratio at end of isobaric desorption step
+        q_high
+            [kg/kg] Absorbed mass ratio at end of isobaric adsorption step
+        t_cycle
+            [s] Full cycle time for the four steps
+        
+        Returns
+        -------
+        q_ref
+            [kW] cooling capacity (inbound heat flow from the cold stream)
+        q_in
+            [kW] inbound heat flow from the heat input stream
+        cop 
+            [kW/kW] thermal coefficient of performance
+        m_ref
+            [kg/s] mass flow rate of refrigerant
+        """
         #global m2, t_evap, t_cond, hads, c2, cw, m1, c1
         m2 = self.spec.m2
         t_evap = self.ctrl.t_evap
@@ -212,17 +286,19 @@ class AdsorptionChiller(object):
     def desorption9(self, t, T_d0):
         """Isobaric desorption process.
         
-        Args:
-            t : array
-                A sequence of time points for which to evaluate process.
-            T_d0 : float
-                The initial temperature for desorption.
+        Args
+        ----
+        t : array
+            [s] A sequence of time points for which to evaluate process.
+        T_d0 : float
+            [K] The initial temperature for desorption.
         
-        Returns:
-            ty : array
-                Sequence of temperature
-            qy : array
-                Sequence of adsorbed mass ratio
+        Returns
+        -------
+        ty : array
+            [K] Sequence of temperature
+        qy : array
+            [kg/kg] Sequence of adsorbed mass ratio
         """
         #global tg2 n xo t_cond
         t_cond = self.ctrl.t_cond
@@ -245,16 +321,18 @@ class AdsorptionChiller(object):
         """Integrates the equations for isobaric desorption
         over the given interval of temperature.
         
-        Args:
-            T : array
-                Sequence of temperatures at which to evaluate process.
-                Time zero corresponds to the first element of the array.
+        Args
+        ----
+        T : array
+            [K] Sequence of temperatures at which to evaluate process.
+            Time zero corresponds to the first element of the array.
         
-        Returns:
-            t : array
-                The time required to reach the input temperature.
-            q : array
-                The adsorbed mass ratio.
+        Returns
+        -------
+        t : array
+            [s] Sequence of the time required to reach the input temperature.
+        q : array
+            [kg/kg] Sequence of the adsorbed mass ratio.
         """
         #global n xo t_cond
         t_cond = self.ctrl.t_cond
@@ -270,17 +348,19 @@ class AdsorptionChiller(object):
     def adsorption9(self, t, T_a0):
         """Isobaric adsorption process.
         
-        Args:
-            t : array
-                A sequence of time points for which to evaluate process.
-            T_a0 : float
-                The initial temperature for adsorption.
+        Args
+        ----
+        t : array
+            [s] A sequence of time points for which to evaluate process.
+        T_a0 : float
+            [K] The initial temperature for adsorption.
         
-        Returns:
-            tad : array
-                Sequence of temperature
-            qad : array
-                Sequence of adsorbed mass ratio
+        Returns
+        -------
+        tad : array
+            [K] Sequence of temperature
+        qad : array
+            [kg/kg] Sequence of adsorbed mass ratio
         """
         #global ta2_n n xo t_evap
         t_evap = self.ctrl.t_evap
@@ -298,7 +378,21 @@ class AdsorptionChiller(object):
 
     def adsorptionFlip(self, T):
         """Integrates the equations for isobaric adsorption
-        over the given interval of temperature."""
+        over the given interval of temperature.
+        
+        Args
+        ----
+        T : array
+            [K] Sequence of temperatures at which to evaluate process.
+            Time zero corresponds to the first element of the array.
+        
+        Returns
+        -------
+        t : array
+            [s] Sequence of the time required to reach the input temperature.
+        q : array
+            [kg/kg] Sequence of the adsorbed mass ratio.
+        """
         #global n xo t_evap
         t_evap = self.ctrl.t_evap
         
@@ -311,10 +405,20 @@ class AdsorptionChiller(object):
         return t, q
         
     def compress(self, q):
-        """Returns the dwell time (delta_t) needed to compress, assuming a
-        constant adsorbate mass ratio (q).
+        """Compression of the adsorption bed at constant adsorbed mass ratio.
         
-        TODO: assumes U for heat transfer is u_des."""
+        Args
+        ----
+        q
+            [kg/kg] Adsorbate mass ratio during the process.
+        
+        Returns
+        -------
+        delta_t
+            [s] The dwell time needed to compress.
+        
+        TODO: assumes U for heat transfer is u_des.
+        """
         
         #global t_cond t_evap
         #global a_hex cw c1 c2 m1 m2 m_cool u_ads t_exhaust
@@ -386,15 +490,17 @@ class AdsorptionChiller(object):
         """Returns the time derivative of temperature during desorption.
         Assumes a heat exchanger like process.
         
-        Args:
-            y : float
-                Temperature in the adsorber bed. Elsewhere called ty.
-            t0 : float
-                Current time (ignored).
+        Args
+        ----
+        y : float
+            [K] Temperature in the adsorber bed. Elsewhere called ty.
+        t0 : float
+            [s] Current time (ignored).
             
-        Returns:
-            Tdot : float
-                Time derivative of temperature.
+        Returns
+        -------
+        Tdot : float
+            Time derivative of temperature.
         """
         ty = y
         #global a_hex cw c1 c2 hads  m1 m2 n t_cond t_exhaust xo m_water u_des
@@ -424,13 +530,16 @@ class AdsorptionChiller(object):
     def equation29flip(self, t0, y):
         """Reciprocal of equation29, to be used with odeint.
         
-        Args:
-            t0 : float
-                The current time
-            y : float
-                The current adsorbed mass ratio
+        Args
+        ----
+        t0 : float
+            The current time
+        y : float
+            The current adsorbed mass ratio
         
-        Returns:
+        Returns
+        -------
+        dtdT
             The derivative of time wrt. temperature.
         """
         return 1/self.equation29(y, t0)
@@ -438,15 +547,17 @@ class AdsorptionChiller(object):
     def equation49(self, y, t0=None):
         """Returns the time derivative of temperature during adsorption.
         
-        Args:
-            y : float
-                The temperature in the adsorption bed.
-            t0 : float
-                The current time (ignored)
+        Args
+        ----
+        y : float
+            The temperature in the adsorption bed.
+        t0 : float
+            The current time (ignored)
         
-        Returns:
-            Tdot : float
-                The temperature derivative wrt time.
+        Returns
+        -------
+        Tdot : float
+            The temperature derivative wrt time.
         """
         tad = y
         #global a_hex cw c1 c2 cpv hads m1 m2 n t_evap t_cool xo m_cool u_ads
@@ -469,7 +580,7 @@ class AdsorptionChiller(object):
         q = self.f.Q(t_evap, tad)
         dqdT = self.f.dQdT(t_evap, tad)
         term1 = m1 * c1 + m2 * (c2 + q * cw)
-        term2 = m2 * ((-hads) + cpv * (t_evap - tad)) * dqdT
+        term2 = m2 * ((-hads) - cpv * (t_evap - tad)) * dqdT
         Tdot1 = Qdot / (term1 + term2)
         
         return Tdot1
@@ -477,18 +588,31 @@ class AdsorptionChiller(object):
     def equation49flip(self, t0, y):
         """Reciprocal of equation49 to be used with odeint.
         
-        Args:
-            t0 : float
-                The current time.
-            y : float
-                The current adsorbed mass fraction.
+        Args
+        ----
+        t0 : float
+            The current time.
+        y : float
+            The current adsorbed mass fraction.
                 
-        Returns:
-            The derivative of time wrt. temperature."""
-        return self.equation49(y, t0)
+        Returns
+        -------
+        dtdT
+            The derivative of time wrt. temperature.
+        """
+        return 1/self.equation49(y, t0)
     
 class Freundlich(object):
-    """Store the parameters for calling Freundlich equation."""
+    """An adsorbate-refrigerant pair equilibrium model.
+    Stores the parameters for calling Freundlich equation.
+    
+    Args
+    ----
+    xo
+        [kg/kg] maximum adsorption capacity
+    n
+        exponent
+    """
     def __init__(self,xo,n):
         self.xo = xo
         self.n = n
