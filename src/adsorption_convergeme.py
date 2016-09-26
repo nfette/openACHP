@@ -7,7 +7,7 @@ Created on Fri Aug 12 08:21:01 2016
 Adsorption cycle simulation, fast optimization, and parametric study.
 """
 
-from numpy import linspace, zeros, meshgrid, nan, logical_and, unravel_index
+from numpy import linspace, zeros, meshgrid, nan, logical_and, unravel_index, array
 from scipy.interpolate import PchipInterpolator
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure, plot, show, xlabel, ylabel, contour, clabel, title, subplot, xlim, draw
@@ -47,24 +47,33 @@ decompression dwell times are computed at each point, as well as the resulting
 time-averaged heat flow rates and COP.
 """
 
-    def __init__(self,ch):
+    def __init__(self,ch,q_min=None,q_max=None,refine=False):
         t_cond = ch.ctrl.t_cond
         t_evap = ch.ctrl.t_evap
         t_cool = ch.ctrl.t_cool
         t_exhaust = ch.ctrl.t_exhaust
         
         # The extreme ranges depend on the heat and cold sources.
-        self.q_min = ch.f.Q(t_cond, t_exhaust);
-        self.q_max = ch.f.Q(t_evap, t_cool);
         margin_up = 1e-3
         margin_down = 1e-5
-        q_range = linspace(self.q_min+margin_down,self.q_max-margin_up);
-        # We should start desorption at q_max.
-        T_d0 = ch.f.T(t_cond, self.q_max-margin_up);
-        T_d1 = ch.f.T(t_cond, self.q_min+margin_down);
+        if q_min == None:
+            self.q_min = ch.f.Q(t_cond, t_exhaust) + margin_down
+        else:
+            self.q_min = q_min
+            
+        if q_max == None:
+            self.q_max = ch.f.Q(t_evap, t_cool) - margin_up
+        else:
+            self.q_max = q_max
+            
         
-        T_a0 = ch.f.T(t_evap, self.q_min+margin_down);
-        T_a1 = ch.f.T(t_evap, self.q_max-margin_up);
+        q_range = linspace(self.q_min,self.q_max);
+        # We should start desorption at q_max.
+        T_d0 = ch.f.T(t_cond, self.q_max);
+        T_d1 = ch.f.T(t_cond, self.q_min);
+        
+        T_a0 = ch.f.T(t_evap, self.q_min);
+        T_a1 = ch.f.T(t_evap, self.q_max);
         
         # Collect data for (all) desorption processes
         T_d = linspace(T_d0,T_d1);
@@ -91,7 +100,8 @@ time-averaged heat flow rates and COP.
         ta_splined = self.ppa(q_range)
         
         figure(1)
-        plt.cla()
+        if not refine:
+            plt.cla()
         plot(self.t_d,self.q_d,'ro',label='Desorb')
         plot(self.t_a,self.q_a,'bs',label='Adsorb')
         plot(deltat_cmp,q_range,'pink',label='Compress')
@@ -101,9 +111,10 @@ time-averaged heat flow rates and COP.
         xlabel('Integration time, $t$ (s)')
         ylabel('Adsorbed mass ratio, $q$ (kg/kg)')
         title('$T_{{\\rm exhaust}}$ = {:g} K'.format(t_exhaust))
-        plt.legend()
+        if not refine:
+            plt.legend()
         
-    def parametric(self,ch):
+    def parametric(self,ch,refine=False):
         """Now do a parametric study. Choose q_low and q_high, then determine
         the time needed in each step, and the other outputs of the system."""
         
@@ -146,6 +157,7 @@ time-averaged heat flow rates and COP.
         m_ref = 2 * (Y - X) * ch.spec.m2 / self.t_cycle
         DeltaH = WaterTQ2H(ch.ctrl.t_evap,1) - WaterTQ2H(ch.ctrl.t_cond,0)
         self.q_ref = m_ref * DeltaH
+        # TODO: the Y and T_ terms require an integral?
         self.q_in = (m_ref * ch.spec.hads) \
             + 2 * (ch.spec.m2 * (ch.spec.c2 + Y * ch.spec.cw) + ch.spec.m1 * ch.spec.c1) * (T_d1 - T_a1) / (self.t_cycle)
         self.cop = self.q_ref / self.q_in
@@ -157,18 +169,45 @@ time-averaged heat flow rates and COP.
         self.mask=logical_and(self.t_desorb >= 0, self.t_adsorb >= 0)
         mask1[self.mask] = 1;
         masknan[self.mask] = 1;
+        # This gives a quick guess at the maximum
         Iflat = (self.q_ref * mask1).argmax()
         I1,I2 = unravel_index(Iflat,self.q_ref.shape)
-        t_d_opt = self.t_desorb[I1,I2];
-        t_e_opt = self.t_decomp[I1,I2];
-        t_a_opt = self.t_adsorb[I1,I2];
-        t_c_opt = self.t_compress[I1,I2];
-        Q_max = self.q_ref[I1,I2];
-        COP_max = self.cop[I1,I2];
+        
+        t_d_opt = self.t_desorb[I1,I2]
+        t_e_opt = self.t_decomp[I1,I2]
+        t_a_opt = self.t_adsorb[I1,I2]
+        t_c_opt = self.t_compress[I1,I2]
+        Q_max = self.q_ref[I1,I2]
+        COP_max = self.cop[I1,I2]
         t_total = self.t_cycle[I1,I2]
+        q_low = self.q_lows[I1-1]
+        q_high = self.q_highs[I2+1]
+        
+        if refine:
+            from scipy.interpolate import RectBivariateSpline
+            from scipy.optimize import minimize
+            spline = RectBivariateSpline(self.q_lows,self.q_highs,self.q_ref)
+            def fun(x):
+                return -spline(x[0],x[1])
+            opt = minimize(fun, array([[q_low,q_high]]))
+            q_low,q_high = opt.x
+            Q_max = -opt.fun
+            t_d_opt = self.ppd(q_low) - self.ppd(q_high)
+            t_e_opt = self.pp_decomp(q_low)
+            t_a_opt = self.ppa(q_high) - self.ppa(q_low)
+            t_c_opt = self.pp_comp(q_high)
+            t_total = t_d_opt + t_e_opt + t_a_opt + t_c_opt
+            T_d1_opt = self.pp_Td(q_high)
+            T_a1_opt = self.pp_Ta(q_low)
+            m_ref_opt = 2 * (q_high - q_low) * ch.spec.m2 / t_total
+            q_in_opt = (m_ref_opt * ch.spec.hads) \
+                + 2 * (ch.spec.m2 * (ch.spec.c2 + q_high * ch.spec.cw) + ch.spec.m1 * ch.spec.c1) * (T_d1_opt - T_a1_opt) / (t_total)
+            COP_max = Q_max / q_in_opt
+        
         
         figure(2)
-        plt.cla()
+        if not refine:
+            plt.cla()
         #CS = plt.contourf(X,Y,self.t_cycle)
         #clabel(CS, inline=1, fontsize=10)
         plt.pcolormesh(X,Y,self.t_cycle*masknan,vmin=0,vmax=self.t_cycle.max())
@@ -178,7 +217,8 @@ time-averaged heat flow rates and COP.
         
         fig=figure(3)
         ax = fig.gca()
-        ax.cla()
+        if not refine:
+            ax.cla()
         #CS = plt.contourf(X,Y,t_fractiond*masknan)
         #clabel(CS, inline=1, fontsize=10)
         plt.pcolormesh(X,Y,masknan*t_fractiond,vmin=0,vmax=1)
@@ -187,8 +227,9 @@ time-averaged heat flow rates and COP.
         title('Desorption step fraction, $t_{des}/t_{cycle}$')
         
         fig = figure(4)
-        plt.clf()
-        ax = fig.add_subplot(111, projection='3d')
+        if not refine:
+            plt.clf()
+        """ax = fig.add_subplot(111, projection='3d')
         ax.grid(True)
         ax.plot_wireframe(self.t_desorb*masknan,self.t_adsorb*masknan,X,color='b')
         ax.plot_wireframe(self.t_desorb*masknan,self.t_adsorb*masknan,Y,color='r')
@@ -197,10 +238,16 @@ time-averaged heat flow rates and COP.
         #set(gca,'ylim',[0, max(t_adsorb(:))])
         xlabel('Desorb step time, $\Delta t$ (s)')
         ylabel('Adsorb step time, $\Delta t$ (s)')
-        ax.set_zlabel('Mass ratio, $q$ (kg/kg)')
+        ax.set_zlabel('Mass ratio, $q$ (kg/kg)')"""
+        ax = fig.add_subplot(111)
+        ax.pcolormesh(X,Y,mask1*self.q_ref)
+        xlabel('Low mass ratio, $q_{low}$ (kg/kg)')
+        ylabel('High mass ratio, $q_{high}$ (kg/kg)')
+        title('Cooling capacity, $Q_{cool}$ (kW)')
         
         fig = figure(5)
-        plt.clf()
+        if not refine:
+            plt.clf()
         if False:
             ax = fig.add_subplot(111, projection='3d')
             ax.grid(True)
@@ -213,15 +260,16 @@ time-averaged heat flow rates and COP.
             #ax.contour(self.t_desorb*masknan, self.t_adsorb*masknan, self.q_ref*masknan)
             #ax.tripcolor((self.t_desorb*masknan).flat, (self.t_adsorb*masknan).flat, (self.q_ref*masknan).flat)
             tcf = ax.tricontourf(self.t_desorb[self.mask], self.t_adsorb[self.mask], self.q_ref[self.mask])
-            fig.colorbar(tcf)
-            ax.set_xlim([0,self.t_desorb.max()])
-            ax.set_ylim([0,self.t_adsorb.max()])
+            if not refine:
+                fig.colorbar(tcf)
+                ax.set_xlim([0,self.t_desorb.max()])
+                ax.set_ylim([0,self.t_adsorb.max()])
             ax.set_title('Cooling capacity, $Q_{cool}$ (kW)')
         ax.set_xlabel('Desorb step time, $\Delta t$ (s)')
         ax.set_ylabel('Adsorb step time, $\Delta t$ (s)')
         
-        
-        return [t_d_opt, t_e_opt, t_a_opt, t_c_opt, Q_max, COP_max, t_total]
+        t_opts = (t_d_opt, t_e_opt, t_a_opt, t_c_opt)
+        return t_opts, Q_max, COP_max, t_total, q_low, q_high
 
 class parstudy1():
     def __init__(self):
@@ -272,16 +320,13 @@ class parstudy1():
         self.chiller.ctrl.t_exhaust = t_exhaust
         print('{} K, '.format(t_exhaust))
         self.something = convergeMe(self.chiller)
-        t_d_opt, t_e_opt, t_a_opt, t_c_opt, Q_max, COP_max, t_total\
+        t_opts, Q_max, COP_max, t_total, _, _\
             = self.something.parametric(self.chiller)
-        self.tt_d[i] = t_d_opt
-        self.tt_e[i] = t_e_opt
-        self.tt_a[i] = t_a_opt
-        self.tt_c[i] = t_c_opt
+        self.tt_d[i],self.tt_e[i],self.tt_a[i],self.tt_c[i] = t_opts
         self.tt_total[i] = t_total
         self.QQ[i] = Q_max
         self.CC[i] = COP_max
-        print('{:g} s, {:g} s, {:g} s, {:g} s, {:g} kW\n'.format(t_d_opt, t_e_opt, t_a_opt, t_c_opt, Q_max))
+        print('{:g} s, {:g} s, {:g} s, {:g} s, {:g} kW\n'.format(*t_opts, Q_max))
         self.h.set_ydata(self.QQ)
         self.ax1.relim()
         self.ax1.autoscale_view()
@@ -298,8 +343,83 @@ class parstudy1():
             fig.canvas.flush_events()
             plt.savefig('../img/convergeme.{:02d}.{:02d}.png'.format(f,i))
 
+class parstudy2():
+    def __init__(self):
+        #global t_exhaust T_exhaust_range
+        spec = AdsorptionChillerSpec()
+        ctrl = AdsorptionChillerControl()
+        self.chiller = AdsorptionChiller(spec, ctrl)
+        
+        Ni = 20;
+        #T_exhaust_range = linspace(313,393,Ni);
+        self.u_des_range = linspace(0.1,1,Ni)
+        self.tt_d = zeros(Ni) * nan
+        self.tt_e = zeros(Ni) * nan
+        self.tt_a = zeros(Ni) * nan
+        self.tt_c = zeros(Ni) * nan
+        self.QQ = zeros(Ni) * nan
+        self.CC = zeros(Ni) * nan
+        self.tt_total = zeros(Ni)
+        
+        fig=figure(6)
+        plt.clf()
+        X = self.u_des_range
+        self.ax1=subplot(3,1,1)
+        self.h = plot(X,self.QQ,'ko')[0]
+        self.ax1.relim()
+        self.ax1.autoscale_view()
+        ylabel('$Q_{\\rm max}$ (kW)')
+        self.ax2=subplot(3,1,2,sharex=self.ax1)
+        self.h2 = plot(X,self.CC,'ko')[0]
+        self.ax2.relim()
+        self.ax2.autoscale_view()
+        ylabel('COP')
+        self.ax3=subplot(3,1,3,sharex=self.ax1)
+        self.ax3.stackplot(X,self.tt_d,self.tt_e,self.tt_a,self.tt_c,colors=['r','pink','b','g'])
+        self.ax3.set_xlim([X.min(),X.max()])
+        self.ax3.set_ylim([0,60])
+        self.ax3.set_ylabel('Cycle time (s)')
+        self.ax3.set_xlabel(r'Desorber overall HX coefficient, $U$ (kW$\cdot$ m$^{-2}\cdot$ K$^{-1}$)')
+        self.ax3.hold(False)
+        self.it = iter(enumerate(X))
+    
+    def __iter__(self):
+        return self
+        
+    def __next__(self):
+        i,x = self.it.__next__()
+        
+        self.chiller.spec.u_des = x
+        print('{} kW/m^2-K, '.format(x))
+        # Course result and plots
+        self.something = convergeMe(self.chiller)
+        t_opts, Q_max, COP_max, t_total, q_low, q_high\
+            = self.something.parametric(self.chiller,False)
+        print('{:g} s, {:g} s, {:g} s, {:g} s, {:g} kW, {:g}, {:g}\n'.format(*t_opts, Q_max, q_low, q_high))
+        self.tt_d[i],self.tt_e[i],self.tt_a[i],self.tt_c[i] = t_opts
+        self.tt_total[i] = t_total
+        self.QQ[i] = Q_max
+        self.CC[i] = COP_max
+        
+        self.h.set_ydata(self.QQ)
+        self.ax1.relim()
+        self.ax1.autoscale_view()
+        self.h2.set_ydata(self.CC)
+        self.ax2.relim()
+        self.ax2.autoscale_view()
+        #self.ax3.cla()
+        X = self.u_des_range
+        self.ax3.stackplot(X,self.tt_d,self.tt_e,self.tt_a,self.tt_c,colors=['r','pink','b','g'])
+        self.ax3.set_ylim([0,max(self.tt_total)])
+        for f in range(1,7):
+            fig = figure(f)
+            fig.canvas.draw()
+            fig.canvas.flush_events()
+            plt.savefig('../img/convergeme2.{:02d}.{:02d}.png'.format(f,i))
+            
 if __name__ == "__main__":
     #input('Hit enter to proceed')
-    ps = parstudy1()
+    #ps = parstudy1()
+    ps = parstudy2()
     for p in ps:
         pass

@@ -90,6 +90,10 @@ class AdsorptionChillerSpec(object):
         self.u_des = u_des
         self.u_ads = u_ads
         self.xo = xo
+        
+    def __repr__(self):
+        import tabulate
+        return tabulate.tabulate(self.__dict__.items())
 
 class AdsorptionChillerControl(object):
     """These are system inputs:
@@ -122,6 +126,10 @@ class AdsorptionChillerControl(object):
         self.t_cond = t_cond
         self.t_evap = t_evap
         self.t_exhaust = t_exhaust
+    
+    def __repr__(self):
+        import tabulate
+        return tabulate.tabulate(self.__dict__.items())
         
 class AdsorptionChiller(object):
     """AdsorptionChiller provides a basic transient equilibrium model for an
@@ -671,8 +679,9 @@ def WaterTQ2H(t,q):
     return h
     
 def main():
+    from hw2_1 import CelsiusToKelvin as C2K
     spec = AdsorptionChillerSpec()
-    ctrl = AdsorptionChillerControl()
+    ctrl = AdsorptionChillerControl(t_evap=C2K(12),t_exhaust=C2K(100))
     chiller = AdsorptionChiller(spec, ctrl)
     t_ads = linspace(0,240,endpoint=True)
     t_des = linspace(0,240,endpoint=True)
@@ -681,13 +690,32 @@ def main():
     fig1,(ax1,ax2)=plt.subplots(2,1)
     ax1.cla()
     ax2.cla()
+    print(spec)
+    print(ctrl)
+    headers = 'Delta_T Delta_t q_low q_high'.split()
+    units = 'K s kg/kg kg/kg'.split()
+    fmt1 = "{:>12} "*4
+    fmt2 = "{:>12.5} "*4
+    print(fmt1.format(*headers))
+    print(fmt1.format(*units))
+    print(fmt1.format(*['----------']*4))
     for k in range(5):
-        dT,dt,_,_ = chiller.loopOnce(T_d0, t_des, t_ads, ax1, ax2, [fig1], myt)
+        cycle = chiller.loopOnce(T_d0, t_des, t_ads, ax1, ax2, [fig1], myt)
+        dT,dt,q_low,q_high = cycle
+        print(fmt2.format(*cycle))
         myt += dt
- 
+        T_d0 += dT
+    print(fmt1.format(*['----------']*4))
+    performance = chiller.afterSolve(q_low,q_high,dt)
+    
+    import tabulate
+    headers = 'Q_ref Q_in COP m_dot_ref'.split()
+    units = 'kW kW kW/kW kg/s'.split()
+    print(tabulate.tabulate(zip(headers,units,performance)))
     plt.show()
-    return myt
+    
+    return chiller,cycle,performance
 
 if __name__ == "__main__":
-    myt=main()
+    chiller,cycle,performance=main()
     

@@ -15,14 +15,15 @@ desorption steps are given the same dwell time). Key features:
 * Then compute the states, refrigerant mass flow, etc, and output Q and COP.
 
 """
-from __future__ import print_function
 from numpy import linspace, logspace, nan, zeros, array, meshgrid
 from scipy.optimize import fsolve
 from matplotlib.pyplot import plot, figure, xlabel, ylabel, draw
 from matplotlib import cm
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from adsorption import *
+from adsorption import AdsorptionChillerControl, AdsorptionChillerSpec, \
+    AdsorptionChiller
+from hw2_1 import KelvinToCelsius as K2C
 
 def main():
     spec = AdsorptionChillerSpec()
@@ -84,6 +85,8 @@ def main():
             #while dta>=1e-3:
                 dTa, dt, q_d1, q_a1 = chiller.loopOnce(T_d0, t, t, ax3, ax4, [fig3,fig4], myt)
                 myt += dt
+                # Don't need to see this for every case.
+                # Run adsorption.main to view time series of individual cases.
                 """
                 ty, qy = chiller.desorption9(t, T_d0)
                 fig=figure(3)
@@ -131,14 +134,11 @@ def main():
             #raw_input("Please press [Enter] to proceed")
             #plt.draw()
             #plt.show()
-            
-    T = K2C(T_exhaust_range)
     
     # <codecell>
     fig=figure(7)
-    #set(gca,'dataaspectratio',[1, 1, 0.5],'projection','perspective','box','on')
     ax = fig.add_subplot(111,projection='3d')
-    
+    T = K2C(T_exhaust_range)
     [X,Y]=meshgrid(T,end_t_range,indexing='ij');
     surf=ax.plot_surface(X,Y,q_ref, cmap=cm.viridis, rstride=1, cstride=1)
     xlabel('Hot Water Temperature, $T$ ($^\circ$C)')
@@ -146,8 +146,6 @@ def main():
     ax.set_zlabel('Cooling capacity, kW')
     fig.colorbar(surf, shrink=0.5, aspect=5)
     # Not necessary in matplotlib
-    #set(h,'ActionPostCallback',@align_axislabels)
-    #set(gca,'DataAspectRatio', get(gca,'DataAspectRatio'))
     
     figure(1)
     plot(T ,q_ref,'k-'),xlabel('Hot Water Temperature ($^\circ$C)'),ylabel('Refrigeration Capacity(kW)')
@@ -156,7 +154,6 @@ def main():
     
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
-    #plotyy(T,q_ref,T,cop);
     ax1.plot(T,q_ref,'o:')
     ax2.plot(T,cop,'s:')
     ax1.set_xlabel('Hot Water Temperature ($^\circ$C)')
@@ -164,9 +161,7 @@ def main():
     ax2.set_ylabel('COP') # right y-axis
     
     ax1.set_ylim([0,21])
-    #ax1.YTickMode='auto';
     ax2.set_ylim([0,1.4])
-    #hAx(2).YTickMode='auto';
     
     plt.show()
 
