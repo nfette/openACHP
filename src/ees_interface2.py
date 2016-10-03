@@ -63,7 +63,7 @@ class wrappedProcedure:
                        ctypes.POINTER(EesParamRec), ctypes.POINTER(EesParamRec)]
 
     def wrapper(self, s, intmode, inarglist):
-        strdata = EesStringData(" ")
+        strdata = EesStringData(b" ")
         strdata.raw = "{:256}".format(s)
         intmode = ctypes.c_int(intmode)
         #print(intmode)
@@ -147,25 +147,26 @@ class EES_DLL:
         for i in ['DLFNames','DLPNames','FDLNames']:
             self.mydll['DLFNames'].argtypes = [ctypes.c_char_p]
             self.mydll['DLFNames'].restype = None
-        funcnames = self.getDLPnames()+self.getDLFnames()+self.getFDLnames()
-        #print(funcnames)
+        if False:
+            funcnames = self.getDLPnames()+self.getDLFnames()+self.getFDLnames()
+            print(funcnames)
         
     def getDLFnames(self):
         
-        strdata = EesStringData(" ")
-        strdata.raw = "{:256}".format("")
+        strdata = EesStringData(b" ")
+        #strdata.raw = "{:256}".format("")
         self.mydll['DLFNames'](strdata)
         newnames = strdata.value.strip().split(',')
         return [n for n in newnames if len(n) > 0]
     def getDLPnames(self):
-        strdata = EesStringData(" ")
-        strdata.raw = "{:256}".format("")
+        strdata = EesStringData(b" ")
+        #strdata.raw = "{:256}".format("")
         self.mydll['DLPNames'](strdata)
         newnames = strdata.value.strip().split(',')
         return [n for n in newnames if len(n) > 0]
     def getFDLnames(self):
-        strdata = EesStringData(" ")
-        strdata.raw = "{:256}".format("")
+        strdata = EesStringData(b" ")
+        #strdata.raw = "{:256}".format("")
         self.mydll['FDLNames'](strdata)
         newnames = strdata.value.strip().split(',')
         return [n for n in newnames if len(n) > 0]

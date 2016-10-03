@@ -531,9 +531,9 @@ class AdsorptionChiller(object):
         term1 = m1 * c1 + m2 * (c2 + q * cw)
         dqdT = self.f.dQdT(t_cond, ty)
         term2 = m2 * (-hads) * dqdT
-        tdot = Qdot / (term1 + term2)
+        Tdot = Qdot / (term1 + term2)
         
-        return tdot
+        return Tdot
         
     def equation29flip(self, t0, y):
         """Reciprocal of equation29, to be used with odeint.
@@ -629,6 +629,10 @@ class Freundlich(object):
         return q
     def T(self,T_sat,q_a):
         P_a = wsr4t2p(T_sat) / ((q_a / self.xo) ** self.n)
+        T_a = wsr4p2t(P_a)
+        return T_a
+    def T2(self,P,q_a):
+        P_a = P / ((q_a / self.xo) ** self.n)
         T_a = wsr4p2t(P_a)
         return T_a
     def P(self, T_sat, q_a):
