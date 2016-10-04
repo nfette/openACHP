@@ -88,12 +88,18 @@ time-averaged heat flow rates and COP.
         deltat_dec = ch.decompress(q_range)
         
         # Spline it.
+        # Time functions
         self.ppd = PchipInterpolator(self.q_d[::-1], self.t_d[::-1])
         self.ppa = PchipInterpolator(self.q_a, self.t_a)
+        # Compression / decompression is time delta only
         self.pp_comp = PchipInterpolator(q_range,deltat_cmp)
         self.pp_decomp = PchipInterpolator(q_range,deltat_dec)
+        # Temperature functions
         self.pp_Td = PchipInterpolator(self.q_d[::-1],T_d[::-1])
         self.pp_Ta = PchipInterpolator(self.q_a,T_a)
+        # q as function of T, required to integrate for heat input
+        self.pp_q_of_T = PchipInterpolator(T_d,self.q_d)
+        self.pp_qintegral = self.pp_q_of_T.antiderivative()
         
         # Stuff to display for user
         td_splined = self.ppd(q_range)
@@ -119,10 +125,12 @@ time-averaged heat flow rates and COP.
         the time needed in each step, and the other outputs of the system."""
         
         if True:
-            Ni = 100
-            Nj = 100
+            Ni = 200
+            Nj = 250
             self.q_lows = linspace(self.q_min + 0.0001, self.q_max - 0.001, Ni)
             self.q_highs = linspace(self.q_min + 0.0001, self.q_max - 0.001, Nj)
+            #self.q_lows = linspace(0.02, 0.05, Ni)
+            #self.q_highs = linspace(0.07, 0.11, Nj)
         else:
             self.q_lows = self.q_d[::2]
             self.q_highs = self.q_a[::2]
@@ -140,6 +148,7 @@ time-averaged heat flow rates and COP.
         mask1 = zeros((Ni, Nj))
         masknan = zeros((Ni, Nj))
         masknan.fill(nan)
+        # X is low, Y is high
         [X,Y] = meshgrid(self.q_lows,self.q_highs,indexing='ij')
         for i, q_low in enumerate(self.q_lows):
             self.t_desorb[i,:] += self.ppd(q_low)
@@ -152,14 +161,29 @@ time-averaged heat flow rates and COP.
         
         self.t_cycle = self.t_desorb + self.t_compress + self.t_adsorb + self.t_decomp
         #self.q_ref[i,j], self.q_in[i,j], self.cop[i,j], _ = ch.afterSolve(q_low,q_high,self.t_cycle[i,j])
-        T_d1 = self.pp_Td(Y)
-        T_a1 = self.pp_Ta(X)
-        m_ref = 2 * (Y - X) * ch.spec.m2 / self.t_cycle
+        # End of desorption: P_cond, q_low
+        T_d1 = self.pp_Td(X)
+        # Skip decompression ...
+        # End of adsorption: P_evap, q_high
+        T_a1 = self.pp_Ta(Y)
+        # End of compression: P_cond, q_high
+        T_c1 = self.pp_Td(Y)
+        
+        m_ref = ch.spec.N_beds * (Y - X) * ch.spec.m2 / self.t_cycle
         DeltaH = WaterTQ2H(ch.ctrl.t_evap,1) - WaterTQ2H(ch.ctrl.t_cond,0)
         self.q_ref = m_ref * DeltaH
-        # TODO: the Y and T_ terms require an integral?
-        self.q_in = (m_ref * ch.spec.hads) \
-            + 2 * (ch.spec.m2 * (ch.spec.c2 + Y * ch.spec.cw) + ch.spec.m1 * ch.spec.c1) * (T_d1 - T_a1) / (self.t_cycle)
+        # Changed: the Y and T_ terms require an integral.
+        dead_mass_capacity = (ch.spec.m2 * ch.spec.c2 + ch.spec.m1 * ch.spec.c1)
+        
+        Q_dot_in_compress = (ch.spec.N_beds / self.t_cycle) \
+            * dead_mass_capacity * (T_c1 - T_a1)
+        Q_dot_in_desorb = (m_ref * ch.spec.hads) \
+            + (ch.spec.N_beds / self.t_cycle) \
+            * (dead_mass_capacity * (T_d1 - T_c1) \
+               + ch.spec.m2 * ch.spec.cw * (self.pp_qintegral(T_d1) - self.pp_qintegral(T_c1)))
+        Q_dot_in = Q_dot_in_compress + Q_dot_in_desorb
+        
+        self.q_in = Q_dot_in
         self.cop = self.q_ref / self.q_in
         
         # Do not use this equation, it is wrong:
@@ -204,69 +228,70 @@ time-averaged heat flow rates and COP.
                 + 2 * (ch.spec.m2 * (ch.spec.c2 + q_high * ch.spec.cw) + ch.spec.m1 * ch.spec.c1) * (T_d1_opt - T_a1_opt) / (t_total)
             COP_max = Q_max / q_in_opt
         
-        
-        figure(2)
-        if not refine:
-            plt.cla()
-        #CS = plt.contourf(X,Y,self.t_cycle)
-        #clabel(CS, inline=1, fontsize=10)
-        plt.pcolormesh(X,Y,self.t_cycle*masknan,vmin=0,vmax=self.t_cycle.max())
-        xlabel('Low mass ratio, $q_{low}$ (kg/kg)')
-        ylabel('High mass ratio, $q_{high}$ (kg/kg)')
-        title('Cycle time, $t_{cycle}$ (s)')
-        
-        fig=figure(3)
-        ax = fig.gca()
-        if not refine:
-            ax.cla()
-        #CS = plt.contourf(X,Y,t_fractiond*masknan)
-        #clabel(CS, inline=1, fontsize=10)
-        plt.pcolormesh(X,Y,masknan*t_fractiond,vmin=0,vmax=1)
-        xlabel('Low mass ratio, $q_{low}$ (kg/kg)')
-        ylabel('High mass ratio, $q_{high}$ (kg/kg)')
-        title('Desorption step fraction, $t_{des}/t_{cycle}$')
-        
-        fig = figure(4)
-        if not refine:
-            plt.clf()
-        """ax = fig.add_subplot(111, projection='3d')
-        ax.grid(True)
-        ax.plot_wireframe(self.t_desorb*masknan,self.t_adsorb*masknan,X,color='b')
-        ax.plot_wireframe(self.t_desorb*masknan,self.t_adsorb*masknan,Y,color='r')
-        #plot3([t_d_opt t_d_opt], [t_a_opt t_a_opt], [X(I1,I2) Y(I1,I2)], 'ko-')
-        #set(gca,'xlim',[0, max(t_desorb(:))])
-        #set(gca,'ylim',[0, max(t_adsorb(:))])
-        xlabel('Desorb step time, $\Delta t$ (s)')
-        ylabel('Adsorb step time, $\Delta t$ (s)')
-        ax.set_zlabel('Mass ratio, $q$ (kg/kg)')"""
-        ax = fig.add_subplot(111)
-        ax.pcolormesh(X,Y,mask1*self.q_ref)
-        xlabel('Low mass ratio, $q_{low}$ (kg/kg)')
-        ylabel('High mass ratio, $q_{high}$ (kg/kg)')
-        title('Cooling capacity, $Q_{cool}$ (kW)')
-        
-        fig = figure(5)
-        if not refine:
-            plt.clf()
         if False:
-            ax = fig.add_subplot(111, projection='3d')
-            ax.grid(True)
-            ax.plot_wireframe(self.t_desorb*masknan, self.t_adsorb*masknan, self.q_ref*masknan, color='b')
-            ax.plot([t_d_opt, t_d_opt], [t_a_opt, t_a_opt], [0, Q_max], 'ko-')
-            ax.set_zlabel('Cooling capacity, $Q_{cool}$ (kW)')
-        else:
-            #ax.plot_surface(self.t_desorb*masknan, self.t_adsorb*masknan, self.q_ref*masknan)
-            ax = fig.add_subplot(111)
-            #ax.contour(self.t_desorb*masknan, self.t_adsorb*masknan, self.q_ref*masknan)
-            #ax.tripcolor((self.t_desorb*masknan).flat, (self.t_adsorb*masknan).flat, (self.q_ref*masknan).flat)
-            tcf = ax.tricontourf(self.t_desorb[self.mask], self.t_adsorb[self.mask], self.q_ref[self.mask])
+            figure(2)
             if not refine:
-                fig.colorbar(tcf)
-                ax.set_xlim([0,self.t_desorb.max()])
-                ax.set_ylim([0,self.t_adsorb.max()])
-            ax.set_title('Cooling capacity, $Q_{cool}$ (kW)')
-        ax.set_xlabel('Desorb step time, $\Delta t$ (s)')
-        ax.set_ylabel('Adsorb step time, $\Delta t$ (s)')
+                plt.cla()
+            #CS = plt.contourf(X,Y,self.t_cycle)
+            #clabel(CS, inline=1, fontsize=10)
+            plt.pcolormesh(X,Y,self.t_cycle*masknan,vmin=0,vmax=self.t_cycle.max())
+            xlabel('Low mass ratio, $q_{low}$ (kg/kg)')
+            ylabel('High mass ratio, $q_{high}$ (kg/kg)')
+            title('Cycle time, $t_{cycle}$ (s)')
+            
+            fig=figure(3)
+            ax = fig.gca()
+            if not refine:
+                ax.cla()
+            #CS = plt.contourf(X,Y,t_fractiond*masknan)
+            #clabel(CS, inline=1, fontsize=10)
+            plt.pcolormesh(X,Y,masknan*t_fractiond,vmin=0,vmax=1)
+            xlabel('Low mass ratio, $q_{low}$ (kg/kg)')
+            ylabel('High mass ratio, $q_{high}$ (kg/kg)')
+            title('Desorption step fraction, $t_{des}/t_{cycle}$')
+            
+            fig = figure(4)
+            if not refine:
+                plt.clf()
+            """ax = fig.add_subplot(111, projection='3d')
+            ax.grid(True)
+            ax.plot_wireframe(self.t_desorb*masknan,self.t_adsorb*masknan,X,color='b')
+            ax.plot_wireframe(self.t_desorb*masknan,self.t_adsorb*masknan,Y,color='r')
+            #plot3([t_d_opt t_d_opt], [t_a_opt t_a_opt], [X(I1,I2) Y(I1,I2)], 'ko-')
+            #set(gca,'xlim',[0, max(t_desorb(:))])
+            #set(gca,'ylim',[0, max(t_adsorb(:))])
+            xlabel('Desorb step time, $\Delta t$ (s)')
+            ylabel('Adsorb step time, $\Delta t$ (s)')
+            ax.set_zlabel('Mass ratio, $q$ (kg/kg)')"""
+            ax = fig.add_subplot(111)
+            ax.pcolormesh(X,Y,mask1*self.q_ref)
+            xlabel('Low mass ratio, $q_{low}$ (kg/kg)')
+            ylabel('High mass ratio, $q_{high}$ (kg/kg)')
+            title('Cooling capacity, $Q_{cool}$ (kW)')
+            
+            fig = figure(5)
+            if not refine:
+                plt.clf()
+            if False:
+                ax = fig.add_subplot(111, projection='3d')
+                ax.grid(True)
+                ax.plot_wireframe(self.t_desorb*masknan, self.t_adsorb*masknan, self.q_ref*masknan, color='b')
+                ax.plot([t_d_opt, t_d_opt], [t_a_opt, t_a_opt], [0, Q_max], 'ko-')
+                ax.set_zlabel('Cooling capacity, $Q_{cool}$ (kW)')
+            else:
+                #ax.plot_surface(self.t_desorb*masknan, self.t_adsorb*masknan, self.q_ref*masknan)
+                ax = fig.add_subplot(111)
+                #ax.contour(self.t_desorb*masknan, self.t_adsorb*masknan, self.q_ref*masknan)
+                #ax.tripcolor((self.t_desorb*masknan).flat, (self.t_adsorb*masknan).flat, (self.q_ref*masknan).flat)
+                # Uncomment this if you want
+                tcf = ax.tricontourf(self.t_desorb[self.mask], self.t_adsorb[self.mask], self.q_ref[self.mask])
+                if not refine:
+                    fig.colorbar(tcf)
+                    ax.set_xlim([0,self.t_desorb.max()])
+                    ax.set_ylim([0,self.t_adsorb.max()])
+                ax.set_title('Cooling capacity, $Q_{cool}$ (kW)')
+            ax.set_xlabel('Desorb step time, $\Delta t$ (s)')
+            ax.set_ylabel('Adsorb step time, $\Delta t$ (s)')
         
         t_opts = (t_d_opt, t_e_opt, t_a_opt, t_c_opt)
         return t_opts, Q_max, COP_max, t_total, q_low, q_high
@@ -327,6 +352,8 @@ class parstudy1():
         self.QQ[i] = Q_max
         self.CC[i] = COP_max
         print('{:g} s, {:g} s, {:g} s, {:g} s, {:g} kW\n'.format(*t_opts, Q_max))
+    
+    def myplot(self):
         self.h.set_ydata(self.QQ)
         self.ax1.relim()
         self.ax1.autoscale_view()
@@ -337,6 +364,8 @@ class parstudy1():
         x = K2C(self.T_exhaust_range)
         self.ax3.stackplot(x,self.tt_d,self.tt_e,self.tt_a,self.tt_c,colors=['r','pink','b','g'])
         self.ax3.set_ylim([0,max(self.tt_total)])
+        
+    def saveplots(self):
         for f in range(1,7):
             fig = figure(f)
             fig.canvas.draw()
@@ -360,6 +389,8 @@ class parstudy2():
         self.QQ = zeros(Ni) * nan
         self.CC = zeros(Ni) * nan
         self.tt_total = zeros(Ni)
+        self.qlow = zeros(Ni) * nan
+        self.qhigh = zeros(Ni) * nan
         
         fig=figure(6)
         plt.clf()
@@ -400,6 +431,8 @@ class parstudy2():
         self.tt_total[i] = t_total
         self.QQ[i] = Q_max
         self.CC[i] = COP_max
+        self.qlow[i] = q_low
+        self.qhigh[i] = q_high
         
         self.h.set_ydata(self.QQ)
         self.ax1.relim()
@@ -420,6 +453,40 @@ class parstudy2():
 if __name__ == "__main__":
     #input('Hit enter to proceed')
     #ps = parstudy1()
-    ps = parstudy2()
-    for p in ps:
-        pass
+    import pickle
+    try:
+        with open('mypickle.pkl','rb') as f:
+            ps = pickle.load(f)
+    except:
+        ps = parstudy2()
+        for p in ps:
+            pass
+        with open('mypickle.pkl','wb') as f:
+            pickle.dump(ps,f)
+    
+    ch=ps.chiller
+    total_adsorbent_mass = ch.spec.m2 * ch.spec.N_beds
+    SCP = ps.QQ / total_adsorbent_mass
+    DeltaH = WaterTQ2H(ch.ctrl.t_evap,1) - WaterTQ2H(ch.ctrl.t_cond,0)
+    Deltaq = ps.qhigh - ps.qlow
+    SCPapprox = DeltaH * Deltaq / ps.tt_total
+#    fig,ax=plt.subplots()
+#    mylabel=r'Desorber overall HX coefficient, $U$ (kW$\cdot$ m$^{-2}\cdot$ K$^{-1}$)'
+#    ax.set_xlabel(mylabel)
+#    ax.set_ylabel('SCP [kW/kg]')
+#    ax.grid()
+#    ax.plot(ps.u_des_range, SCP)
+    ax=plt.twinx(ps.ax1)
+    ax.plot(ps.u_des_range,SCP)
+    ax.axis('tight')
+    ps.ax1.axis('tight')
+    ax.set_ylabel('SCP [kW/kg]')
+    
+    ps.ax1.grid()
+    ps.ax2.grid()
+    ps.ax3.grid()
+    
+    ps.h.set_marker(None); ps.h.set_linestyle('-')
+    ps.h2.set_marker(None); ps.h2.set_linestyle('-')
+    plt.gcf().tight_layout()
+    plt.draw()

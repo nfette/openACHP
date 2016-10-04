@@ -41,6 +41,8 @@ class AdsorptionChillerSpec(object):
     xo
         [kg/kg] maximum adsorption capacity (a constant depends on
         adsorbent-adsorbate pair)
+    N_beds
+        Number of beds
     
     These are not part of the spec because they are determined by the control:
         
@@ -72,6 +74,7 @@ class AdsorptionChillerSpec(object):
         u_des = 0.333,   # kW/m^2 k
         u_ads = 0.333,   # kW/m^2 k
         xo = 0.355,      # kg/kg
+        N_beds = 2,
         ):
         #global a_hex  cpv cw c1 c2 end_t hads i m1 m2 m_cool m_water n start_t t_cool...
         #t_cond t_evap t_exhaust ta2 ta2_n  tg2 xo x_conc x_dil u_des u_ads
@@ -90,6 +93,7 @@ class AdsorptionChillerSpec(object):
         self.u_des = u_des
         self.u_ads = u_ads
         self.xo = xo
+        self.N_beds = N_beds
         
     def __repr__(self):
         import tabulate
@@ -268,28 +272,41 @@ class AdsorptionChiller(object):
         """
         #global m2, t_evap, t_cond, hads, c2, cw, m1, c1
         m2 = self.spec.m2
-        t_evap = self.ctrl.t_evap
-        t_cond = self.ctrl.t_cond
+        P_evap = wsr4t2p(self.ctrl.t_evap)
+        P_cond = wsr4t2p(self.ctrl.t_cond)
         hads = self.spec.hads
         c2 = self.spec.c2
         cw = self.spec.cw
         m1 = self.spec.m1
         c1 = self.spec.c1
         
-        m_ref = 2 * (q_high - q_low) * m2 / (t_cycle)
-        T_d1 = self.f.T(t_cond, q_low)
-        T_a1 = self.f.T(t_evap, q_high)
+        m_dot_ref = self.spec.N_beds * (q_high - q_low) * m2 / (t_cycle)
+        T_a1 = self.f.T2(P_evap, q_high)
+        T_c1 = self.f.T2(P_cond, q_high)
+        T_d1 = self.f.T2(P_cond, q_low)
+        q_d_spline = self.f.splineQ(P_cond,T_c1,T_d1)
+        q_d_integral = q_d_spline.antiderivative()
         
-        q_ref = m_ref * (WaterTQ2H(t_evap,1) - WaterTQ2H(t_cond,0))
-        q_in = (m_ref * hads) \
-            + 2 * (m2 * (c2 + q_high * cw) + m1 * c1) * (T_d1 - T_a1) / (t_cycle)
+        Q_dot_ref = m_dot_ref * (WaterTQ2H(self.ctrl.t_evap,1) - WaterTQ2H(self.ctrl.t_cond,0))
+        # TODO
+        P_cond = 2
         
-        if q_ref < 0:
-            q_ref = 0
+        dead_mass_capacity = (m2 * c2 + m1 * c1)
         
-        cop = q_ref / q_in
+        Q_dot_in_compress = (self.spec.N_beds / t_cycle) \
+            * dead_mass_capacity * (T_c1 - T_a1)
+        Q_dot_in_desorb = (m_dot_ref * hads) \
+            + (self.spec.N_beds / t_cycle) \
+            * (dead_mass_capacity * (T_d1 - T_c1) \
+               + m2 * cw * (q_d_integral(T_d1) - q_d_integral(T_c1)))
+        Q_dot_in = Q_dot_in_compress + Q_dot_in_desorb
         
-        return q_ref, q_in, cop, m_ref
+        if Q_dot_ref < 0:
+            Q_dot_ref = 0
+        
+        cop = Q_dot_ref / Q_dot_in
+        
+        return Q_dot_ref, Q_dot_in, cop, m_dot_ref
     
     def desorption9(self, t, T_d0):
         """Isobaric desorption process.
@@ -624,6 +641,7 @@ class Freundlich(object):
     def __init__(self,xo,n):
         self.xo = xo
         self.n = n
+        
     def Q(self,T_sat,T_ads):
         q = self.xo * (wsr4t2p(T_sat) / wsr4t2p(T_ads)) ** (1. / self.n)
         return q
@@ -647,6 +665,17 @@ class Freundlich(object):
         Psat = wsr4t2p(T_sat)
         q = self.Q(T_sat,T_ads)
         return q / (self.n * Psat)
+    def splineQ(self,P,T_min,T_max):
+        """Given the actual pressure P, compute and return a spline for Q(T).
+        This is useful for many repeated calls, or if you need to integrate
+        Q(T) dT."""
+        import scipy.interpolate
+        TT = linspace(T_min,T_max)
+        qq = self.xo * (P / wsr4t2p(TT)) ** (1. / self.n)
+        func = scipy.interpolate.PchipInterpolator(TT,qq)
+        return func
+        
+        
 
 def wsr2pt2h(p,t):
     """ WSR2PT2H  Water vapor pressure.
