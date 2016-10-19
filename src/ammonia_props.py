@@ -182,8 +182,8 @@ class AmmoniaProps:
         #    raise ValueError("Input code not implemented: {}".format(args[0]))
         s,vals = self.mydll.call("",args)
         if s:
-            print(vals)
-            raise KeyError(s)
+            #print(vals)
+            raise KeyError('DLL returned {}'.format(s))
         
         if out:
             return vals[standardOutvars.index(out)]

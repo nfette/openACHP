@@ -6,14 +6,36 @@ Created on Sun Jul 10 23:39:27 2016
 """
 
 import numpy as np
-import scipy
+#import scipy
 import tabulate
 from HRHX_integral_model import plotFlow as plotFlow, \
     counterflow_integrator as hxci, \
     streamExample1 as se1
 import ammonia1
+from scipy.optimize import minimize, basinhopping, brute
+from scipy.special import expit
+import hashlib
+import pickle
 
 def makeBoundary(x):
+    """Given a iterable x that represents 5 stream inlets as T,m pairs,
+    returns the Boundary object representing that.
+    
+    t0,m0,t1,m1,t2,m2,t3,m3,t4,m4 = x
+    
+    Note that boundary streams are
+    
+    0
+        heat
+    1
+        absorberReject
+    2
+        condenserReject
+    3
+        cold
+    4
+        rectifierReject
+    """
     t0,m0,t1,m1,t2,m2,t3,m3,t4,m4 = x
     # Units: K, kg/s, kW/kg-K
     cp = 4.179
@@ -25,6 +47,25 @@ def makeBoundary(x):
     rectifierReject=se1(t4,m4,cp))
 
 def makeChiller(x):
+    """Given a iterable x that represents a chiller state,
+    return a chiller object.
+    
+    Args
+    ====
+    
+    x[0]
+        m_rich (kg/s)
+    x[1]
+        T_evap (K)
+    x[2]
+        T_cond (K)
+    x[3]
+        T_rect (K)
+    x[4]
+        T_abs_outlet (K)
+    x[5]    
+        T_gen_outlet (K)
+    """
     chiller = ammonia1.AmmoniaChiller()
     m_rich, T_evap, T_cond, T_rect, T_abs_outlet, T_gen_outlet = x        
     chiller.update(m_rich = m_rich,
@@ -100,42 +141,91 @@ class System(object):
 #        bar2=plt.bar(range(5),UA,width,tick_label=component)
 
 class Problem(object):
-    def __init__(self,bdry,UAgoal):
+    """
+    Inputs
+    ======
+    bdry : Boundary
+        The object listing external streams that are the boundary conditions
+    UAgoal : float
+        The UAgoal
+    hardConstraints : bool, optional
+        Whether to multiply the objective by a scalar that tapers from 1
+        when constraints are satisfied to 0 when they are violated.
+        Defaults to false (then constraints are available as a list).
+    mu : float
+        Scale over which constraints send the objective to zero, eg.
+        ``objective *= expit(constraint/mu)``
+        
+    Attributes
+    ==========
+    Ncons : int
+        The number of constraints
+    constraints : list
+        Each item is a dictionary having 'type','fun','args' keys.
+        The list is empty if Problem was initialized with hardConstraints=True.
+    input : list
+        Each item is the vector received from minimize, in order.
+    output : dict
+        Each keys is the hash of an input vector; values are (Q,cons) where
+        Q is the cooling capacity and cons are the raw constraint values.
+    """
+    def __init__(self,bdry,UAgoal,hardConstraints=False,mu=0.1):
         self.bdry = bdry
         self.UAgoal = UAgoal
+        self.hardConstraints = hardConstraints
+        self.mu = 0.1
         self.input = []
         self.output = dict()
-        self.constraints=[{'type':'ineq',
+        self.Ncons = 11
+        if hardConstraints:
+            # Hard constraint mode: objective function modified
+            self.constraints = []
+        else:
+            # Soft constraints mode: this is sent to minimizer
+            self.constraints=[{'type':'ineq',
                            'fun':self.constraint,
-                           'args':(i,)} for i in range(11)]
+                           'args':(i,)} for i in range(self.Ncons)]
+        
     def objective(self,x):
-        Q,cons = self.lookup(x)
+        Q,cons = self.lookup(x,printing=True)
+        if self.hardConstraints:
+            mu = self.mu
+            for c in cons:
+                Q *= expit(c/mu)
         return -Q
+        
     def constraint(self,x,*args):
         i,=args
         Q,cons = self.lookup(x)
         return cons[i]
-    def lookup(self,x):
-        print("Looking up {}".format(x))
-        x.flags.writeable = False
-        h = hash(x.data.tobytes())
-        x.flags.writeable = True
-        #print "Hashed x to {}".format(h)
+
+    def lookup(self,x,printing=False):
+        #print("Looking up {}".format(x))
+        h = hasher(x)        
         if h in self.output:
             return self.output[h]
         else:
             self.input.append(x.copy())
-            sys = System(self.bdry,makeChiller(x))
-            Q = sys.chiller.Q_evap
             cons = [x[0],
                 x[2] - x[1],
                 x[3] - x[2],
                 x[5] - x[3],
                 x[5] - x[4]]
-            for name, deltaT, epsilon, UA, Qhx in sys.data:
-                cons.append(deltaT)
-            cons.append(self.UAgoal - sys.totalUA)
+            try:
+                sys = System(self.bdry,makeChiller(x))
+                Q = sys.chiller.Q_evap
+                for name, deltaT, epsilon, UA, Qhx in sys.data:
+                    cons.append(deltaT)
+                cons.append(self.UAgoal - sys.totalUA)
+            except Exception as e:
+                print("At {} caught {}".format(h,e))
+                Q = 0
+                while len(cons) < self.Ncons:
+                    cons.append(-1)
             self.output[h] = (Q,cons)
+            if printing:
+                print("@ hash {:15}, maxcv = {:12.5f}, Q = {:12.5f}".format(h,-min(cons),Q))
+            
             return Q,cons
 
 def main():
@@ -157,21 +247,185 @@ def main():
     # System
     sys = System(bdry,ch)
     print(sys)
-    sys.display()
+    #sys.display()
     return bdry, xC0, ch, sys
     
-if __name__ == "__main__":
-    bdry, xC0, ch, sys = main()
-    p = Problem(bdry, 100)
-    opt = scipy.optimize.minimize(p.objective, xC0, constraints=p.constraints,
-                                  method="COBYLA", options={"rhobeg":0.01})
+def hasher(x):
+    if not isinstance(x,np.ndarray):
+        x = np.array(x,dtype=np.double)
+    # The built-in hash is randomly seeded = bad!
+    # It returns an int.
+    # x.flags.writeable = False
+    # h = hash(y.data.tobytes())
+    # x.flags.writeable = True
+    # The shortest digest in hashlib is md5 at 16 bytes. Good enough.
+    # Can output as hex string (32 chars).
+    h = hashlib.md5(x.astype(np.double)).hexdigest()
+    return h
+    
+def makeOrGetProblemForBoundary(xB,U,xC, method=None, options=None, folder='data'):
+    """Wrap the minimizer and problem with disk storage.
+    If the given boundary constraint has been tried before, the data file
+    in ``folder`` will be loaded to save time.
+    
+    Inputs
+    ======
+    xB : array
+        Input to makeBoundary
+    UA : float
+        Goal for the UA value
+    xC : array
+        Initial input to makeChiller (ignored when loading from file)
+    method : string, optional
+        Passed directly to minimize
+    options : dict, optional
+        Passed directly to minimize
+    folder : string, optional
+        Path to the data folder relative to ../ (defaults to 'data')
+    
+    Returns
+    =======
+    xB : array
+        Echo the boundary input back at you!
+    bdry : Boundary
+        The actual boundary object (so many streams)
+    p : Problem
+        Object with reference to boundary, list of input points,
+        and dictionary of outputs
+    opt : OptimizeResult or None
+        The result if one was reached, or None if an error occured
+    err : Exception
+        The exception, if one was caught during optimization. Errors are caught
+        so that data may be saved.
+    """
+    h = hasher(xB)
+    fname = '../{}/system_aqua1_{}_{}.pkl'.format(folder,U,h)
+    try:
+        with open(fname,'rb') as f:
+            data = pickle.load(f)
+        print("Loaded the case from ",fname)
+        xB,bdry,p,opt,err = data
+    except FileNotFoundError:
+        print("Running the case for ",fname)
+        # Create the data
+        opt,err = None,None
+        bdry = makeBoundary(xB)
+        p = Problem(bdry, U, hardConstraints=True)
+        
+        try:
+            opt = minimize(p.objective,
+                           xC,
+                           constraints=p.constraints,
+                           method=method,
+                           options=options)
+            print(opt)
+        except:
+            import sys
+            c,err,tb = sys.exc_info()
+            print(err)
+        
+        print("Saving to ", fname)
+        # Now store the data
+        data = xB,bdry,p,opt,err
+        with open(fname,'wb') as f:
+            pickle.dump(data,f)
+        
+    return xB,bdry,p,opt,err
+    
+def main1():
+    #bdry, xC0, ch, sys = main()
+    U = 100
+    xB = [400,1, 305,3, 305,5, 285,4, 305,0.15]
+    xC = np.array([   0.51284472,  277.97717012,  312.16427764,  313.6952877 ,
+        310.24856734,  374.14020482])
+    # Moved to aqua_case_studies.py
+    #xB,bdry,p,opt,err = makeOrGetProblemForBoundary(xB,U,xC)
+    
+    
+    #opt = scipy.optimize.minimize(p.objective, xC0, constraints=p.constraints,
+    #    method="COBYLA",
+    #    options={"rhobeg":0.05})
+    #"maxiter":100
+    #"catol":0.1
+    
+    bdry = makeBoundary(xB)
+    p = Problem(bdry, U, hardConstraints=True)
+    opt = basinhopping(p.objective, xC,niter=3,
+                       minimizer_kwargs=dict(options=dict(maxiter=2)))
+    #tol = 1
+    #for i in range(5):
+    #    tol *= 0.25
+    #    hi,low = 1 - tol, 1 + tol
+    #    ranges = [(xi * low, xi * hi) for xi in xC]
+    #    xC = brute(p.objective,ranges,Ns=3)
+    #    print(xC)
+    
     print(opt)
     xC1 = opt.x
     ch1 = makeChiller(xC1)
     print(ch1)
     sys1= System(bdry,ch1)
     print(sys1)
-    sys.display()
+    sys1.display()
+    
+    d=np.dtype([('Q','f'),('cons','(11,)f')])
+    po=np.empty(len(p.input),dtype=d)
+    po.fill(np.nan)
+    for i,ix in enumerate(p.input):
+        po[i] = p.lookup(ix)
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(po['Q'])
+    plt.xlabel('iteration')
+    plt.ylabel('Cooling capacity')
+    plt.title('Objective')
+    
+    fig,axs = plt.subplots(11,1,figsize=(6,20))
+    axs[0].set_title('Constraints')
+    for i,ax in enumerate(axs):
+        ax.plot(po['cons'][:,i],label=str(i))
+        ax.legend()
+    ax.set_xlabel('iteration')
+    
+    #xopt = array([   0.50686621,  277.35844879,  313.01669312,  313.78839   ,
+    #    309.54452247,  376.29152241])
+    
+    pi = np.array(p.input)
+    plt.figure()
+    for i in range(6):
+        plt.plot(pi[:,i]/pi[0,i],label=str(i))
+        
+    plt.legend(loc='best')
+    plt.grid()
+    plt.xlabel('iteration')
+    plt.ylabel('Normalized input variable')
 
-    xopt = array([   0.50686621,  277.35844879,  313.01669312,  313.78839   ,
-        309.54452247,  376.29152241])
+if __name__ == "__main__":
+    import sys
+    infile,outfile,logfile = sys.argv[1:4]
+    import json
+    with open(logfile, 'w') as log:
+        print('infile="{}"'.format(infile),file=log)
+        print('outfile="{}"'.format(outfile),file=log)
+        print('logfile="{}"'.format(logfile),file=log)
+        
+        try:
+            with open(infile) as f:
+                data = json.load(f)
+            UAgoal = data['UAgoal']
+            bdry = makeBoundary(data['xB'])
+            chiller = makeChiller(data['xC'])
+            sys = System(bdry, chiller)
+            
+            with open(outfile,'w') as f:
+                print("Q_evap=",chiller.Q_evap, file=f)
+                for row in sys.data:
+                    name, deltaT, epsilon, UA, Qhx = row
+                    print("UA_{}={}".format(name,UA))
+                    print("deltaT_{}={}".format(name,deltaT))
+        except:
+            t,e,tb = sys.exc_info()
+            print('Caught ')
+            
+    
+        

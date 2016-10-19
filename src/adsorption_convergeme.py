@@ -67,7 +67,7 @@ time-averaged heat flow rates and COP.
             self.q_max = q_max
             
         
-        q_range = linspace(self.q_min,self.q_max);
+        self.q_range = linspace(self.q_min,self.q_max);
         # We should start desorption at q_max.
         T_d0 = ch.f.T(t_cond, self.q_max);
         T_d1 = ch.f.T(t_cond, self.q_min);
@@ -84,45 +84,50 @@ time-averaged heat flow rates and COP.
         [self.t_a, self.q_a] = ch.adsorptionFlip(T_a);
         
         # Collect data for compression and decompression
-        deltat_cmp = ch.compress(q_range)
-        deltat_dec = ch.decompress(q_range)
+        self.deltat_cmp = ch.compress(self.q_range)
+        self.deltat_dec = ch.decompress(self.q_range)
         
         # Spline it.
         # Time functions
         self.ppd = PchipInterpolator(self.q_d[::-1], self.t_d[::-1])
         self.ppa = PchipInterpolator(self.q_a, self.t_a)
         # Compression / decompression is time delta only
-        self.pp_comp = PchipInterpolator(q_range,deltat_cmp)
-        self.pp_decomp = PchipInterpolator(q_range,deltat_dec)
+        self.pp_comp = PchipInterpolator(self.q_range,self.deltat_cmp)
+        self.pp_decomp = PchipInterpolator(self.q_range,self.deltat_dec)
         # Temperature functions
         self.pp_Td = PchipInterpolator(self.q_d[::-1],T_d[::-1])
         self.pp_Ta = PchipInterpolator(self.q_a,T_a)
         # q as function of T, required to integrate for heat input
         self.pp_q_of_T = PchipInterpolator(T_d,self.q_d)
         self.pp_qintegral = self.pp_q_of_T.antiderivative()
+    
+        
+    def initPlots(self):
         
         # Stuff to display for user
-        td_splined = self.ppd(q_range)
-        ta_splined = self.ppa(q_range)
+        td_splined = self.ppd(self.q_range)
+        ta_splined = self.ppa(self.q_range)
         
         figure(1)
-        if not refine:
-            plt.cla()
         plot(self.t_d,self.q_d,'ro',label='Desorb')
         plot(self.t_a,self.q_a,'bs',label='Adsorb')
-        plot(deltat_cmp,q_range,'pink',label='Compress')
-        plot(deltat_dec,q_range,'g',label='Decompress')
-        plot(td_splined,q_range,'r')
-        plot(ta_splined,q_range,'b')
+        plot(self.deltat_cmp,self.q_range,'pink',label='Compress')
+        plot(self.deltat_dec,self.q_range,'g',label='Decompress')
+        plot(td_splined,self.q_range,'r')
+        plot(ta_splined,self.q_range,'b')
         xlabel('Integration time, $t$ (s)')
         ylabel('Adsorbed mass ratio, $q$ (kg/kg)')
         title('$T_{{\\rm exhaust}}$ = {:g} K'.format(t_exhaust))
-        if not refine:
-            plt.legend()
+        plt.legend()
         
     def parametric(self,ch,refine=False):
-        """Now do a parametric study. Choose q_low and q_high, then determine
-        the time needed in each step, and the other outputs of the system."""
+        """Now do a 'parametric study' over (q_low, q_high) space.
+        For each (q_low,q_high), determine the time needed in each step, and
+        the other outputs of the system.
+        
+        Then, find the index that gives the maximum cooling capacity,
+        and return properties at that index.
+        """
         
         if True:
             Ni = 200
@@ -488,5 +493,5 @@ if __name__ == "__main__":
     
     ps.h.set_marker(None); ps.h.set_linestyle('-')
     ps.h2.set_marker(None); ps.h2.set_linestyle('-')
-    plt.gcf().tight_layout()
-    plt.draw()
+    #plt.gcf().tight_layout()
+    #plt.draw()

@@ -1,0 +1,10 @@
+{
+"stepNumber":%stepNumber%,
+"xB":[400.,1., 305.,3., 305.,5., 285.,4., 305.,0.15],
+"xC":[%m_rich%,
+    %T_evap%,
+    %T_cond%,
+    %T_rect%,
+    %T_abs_outlet%,
+    %T_gen_outlet%]
+}
