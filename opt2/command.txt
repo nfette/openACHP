@@ -1,0 +1,26 @@
+/* GenOpt command file
+   MWetter@lbl.gov 2003-05-28
+*/
+
+Vary{
+  Parameter{ Name = m_rich;       Min = 0.01; Ini = 0.1; Max = 1; Step = 0.1; }
+  Parameter{ Name = T_evap;       Min = 273.65; Ini = 274.15; Max = 280.15; Step = 5; }
+  Parameter{ Name = T_cond;       Min = 305.15; Ini = 312.15; Max = 333.15; Step = 5; }
+  Parameter{ Name = T_rect;       Min = 305.15; Ini = 313.15; Max = 333.15; Step = 5; }
+  Parameter{ Name = T_abs_outlet; Min = 305.15; Ini = 310.15; Max = 333.15; Step = 5; }
+  Parameter{ Name = T_gen_outlet; Min = 303.65; Ini = 393.15; Max = 473.15; Step = 5; }
+}
+
+OptimizationSettings{
+  MaxIte = 2000;
+  MaxEqualResults = 100;
+  WriteStepNumber = true;
+}
+
+Algorithm{
+ Main = GPSHookeJeeves;
+ MeshSizeDivider = 2;
+ InitialMeshSizeExponent = 0;
+ MeshSizeExponentIncrement = 1;
+ NumberOfStepReduction = 4;
+}

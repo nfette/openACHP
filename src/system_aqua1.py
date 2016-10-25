@@ -113,7 +113,11 @@ class System(object):
         self.data = []
         for name in self.hxs:
             self.hxs[name].calcQmax()
-            deltaT, epsilon, UA = self.hxs[name].calcUA2(self.Q[name])
+            deltaT, epsilon, UA = np.inf, np.inf, np.inf
+            try:
+                deltaT, epsilon, UA = self.hxs[name].calcUA2(self.Q[name])
+            except ValueError as e:
+                pass
             self.data.append((name, deltaT, epsilon, UA, self.Q[name]))
             self.totalUA += UA
     
@@ -141,20 +145,61 @@ class System(object):
 #        bar2=plt.bar(range(5),UA,width,tick_label=component)
 
 class Problem(object):
-    """
+    r"""
+    A wrapper for aqua-water absorption system plus other features.
+    
+    * Constraint evaluation
+    * Storage of previously evaluated systems for faster lookup of repeats
+    
+    If ``hardConstraints=True``, then constraints will be applied to modify the
+    value returned by ``objective()`` using this formula (no reference, just
+    something I invented)::
+        
+        for each constraint:
+            objective *= expit(constraint/mu)
+    
+    where each :math:`constraint \ge 0` in the feasible region following the
+    convention of ``scipy.optimize.minimize`` constraints. This mechanism is
+    not great because on the boundary, the modifier is 0.5, so the constraint
+    can be violated.
+    
+    Smarter constraint mechanisms are
+    suggested by Michael Wetter in the GenOpt manual, called boundary and
+    penalty functions. In this case each :math:`g(x) \le 0`, and 
+    
+    .. math::
+        
+        \tilde{f}(x,\mu) &=& f(x) + \mu\frac{1}{\sum g^i(x)}
+        
+        \tilde{f}(x,\mu) &=& f(x) + \mu\sum{\max(0,g^i(x))^2}
+    
+    The boundary functions explode at the boundary to encourage staying within
+    the interior of the feasible region. The penalty functions allow to escape
+    the feasible region, which accomodates equality constraints.
+        
     Inputs
     ======
     bdry : Boundary
         The object listing external streams that are the boundary conditions
     UAgoal : float
         The UAgoal
-    hardConstraints : bool, optional
-        Whether to multiply the objective by a scalar that tapers from 1
-        when constraints are satisfied to 0 when they are violated.
-        Defaults to false (then constraints are available as a list).
-    mu : float
+    constraintMode : string, optional
+        How to handle constraints.
+        
+        None (default):
+            Defaults = None (then constraints are available to scipy.optimize as a
+            list).
+        'expit':
+            multiply the objective by a scalar that tapers from 1
+            when constraints are satisfied to 0 when they are violated.
+        'genopt1':
+            Use boundary functions for hard constraints (valid cycle and each
+            UA > 0), and penalty functions for soft constraints (total UA goal).
+            No scaling is applied.
+        
+    mu : float, optional
         Scale over which constraints send the objective to zero, eg.
-        ``objective *= expit(constraint/mu)``
+        ``objective *= expit(constraint/mu)``. Default = 0.1.
         
     Attributes
     ==========
@@ -169,30 +214,57 @@ class Problem(object):
         Each keys is the hash of an input vector; values are (Q,cons) where
         Q is the cooling capacity and cons are the raw constraint values.
     """
-    def __init__(self,bdry,UAgoal,hardConstraints=False,mu=0.1):
+    def __init__(self,bdry,UAgoal,constraintMode=None,mu=0.1):
         self.bdry = bdry
         self.UAgoal = UAgoal
-        self.hardConstraints = hardConstraints
+        self.constraintMode = constraintMode
         self.mu = 0.1
         self.input = []
         self.output = dict()
         self.Ncons = 11
-        if hardConstraints:
-            # Hard constraint mode: objective function modified
-            self.constraints = []
-        else:
+        if constraintMode == None:
             # Soft constraints mode: this is sent to minimizer
             self.constraints=[{'type':'ineq',
                            'fun':self.constraint,
                            'args':(i,)} for i in range(self.Ncons)]
-        
-    def objective(self,x):
+        else:
+            # Hard constraint mode: objective function modified
+            self.constraints = []
+            
+
+    """Return the value of the objective function to minimize. This is
+    :math:`-Q_{evap}` modified depending on constraintMode."""
+    def objective(self,x,stepNumber=1):
         Q,cons = self.lookup(x,printing=True)
-        if self.hardConstraints:
+        if self.constraintMode == 'expit':
             mu = self.mu
             for c in cons:
                 Q *= expit(c/mu)
-        return -Q
+            return -Q
+        elif self.constraintMode == 'genopt1':
+            # Each cons[i] > 0 by scipy convention,
+            # So need to change the sign of the second term.
+            
+            # GenOpt eqn. 8.6
+            barrier = 0
+            for c in cons[:10]:
+                g = -c
+                barrier += g
+            # Eqn. 8.7
+            mu1 = stepNumber ** (-2)
+            
+            # GenOpt eqn. 8.8
+            penalty = 0
+            for c in cons[10:]:
+                g = -c
+                penalty += max(0,g) ** 2
+            # Eqn 8.9
+            mu2 = stepNumber ** (2)
+            
+            f_tilde = -Q + mu1 * barrier + mu2 * penalty
+            return f_tilde
+        else:
+            return -Q
         
     def constraint(self,x,*args):
         i,=args
@@ -227,7 +299,42 @@ class Problem(object):
                 print("@ hash {:15}, maxcv = {:12.5f}, Q = {:12.5f}".format(h,-min(cons),Q))
             
             return Q,cons
+            
+def systemConstraints(sys,UAgoal):
+    T_evap = sys.chiller.refrig_evap_outlet.T
+    T_cond = sys.chiller.refrig_cond_outlet.T
+    T_rect = sys.chiller.refrig_rect_outlet.T
+    T_gen_outlet = sys.chiller.weak_gen_outlet.T
+    T_abs_outlet = sys.chiller.rich_abs_outlet.T
+    hardConstraints = [T_cond - T_evap,
+            T_rect - T_cond,
+            T_gen_outlet - T_rect,
+            T_gen_outlet - T_abs_outlet]
+    # name, deltaT, epsilon, UA, Q
+    deltaTT = [hx[1] for hx in sys.data]
+    for deltaT in deltaTT:
+        hardConstraints.append(deltaT)
+    
+    softConstraints = [UAgoal - sys.totalUA]
 
+    # GenOpt eqn. 8.6
+    barrier = 0
+    for c in hardConstraints:
+        g = -c
+        barrier += g
+    # Eqn. 8.7
+    #mu1 = stepNumber ** (-2)
+    
+    # GenOpt eqn. 8.8
+    penalty = 0
+    for c in softConstraints:
+        g = -c
+        penalty += max(0,g) ** 2
+    # Eqn 8.9
+    #mu2 = stepNumber ** (2)
+    
+    return barrier, penalty
+            
 def main():
     # Boundary
     xB0 = [400,1,
@@ -310,7 +417,7 @@ def makeOrGetProblemForBoundary(xB,U,xC, method=None, options=None, folder='data
         # Create the data
         opt,err = None,None
         bdry = makeBoundary(xB)
-        p = Problem(bdry, U, hardConstraints=True)
+        p = Problem(bdry, U, constraintMode='expit')
         
         try:
             opt = minimize(p.objective,
@@ -400,32 +507,89 @@ def main1():
     plt.xlabel('iteration')
     plt.ylabel('Normalized input variable')
 
-if __name__ == "__main__":
-    import sys
+def main2():
+    import sys # command args
+    import traceback # display errors into log
     infile,outfile,logfile = sys.argv[1:4]
-    import json
+    import json # read input file with standard, structured format
+    from decimal import Decimal # convert 'inf' to 'Infinity' etc
+    
     with open(logfile, 'w') as log:
         print('infile="{}"'.format(infile),file=log)
         print('outfile="{}"'.format(outfile),file=log)
         print('logfile="{}"'.format(logfile),file=log)
         
         try:
-            with open(infile) as f:
-                data = json.load(f)
+            with open(infile) as fin:
+                data = json.load(fin)
+            stepNumber=data['stepNumber'] 
             UAgoal = data['UAgoal']
-            bdry = makeBoundary(data['xB'])
-            chiller = makeChiller(data['xC'])
+            xB = data['xB']
+            xC = data['xC']
+            print('UAgoal={}'.format(UAgoal),file=log)
+            print('xB={}'.format(xB),file=log)
+            print('xC={}'.format(xC),file=log)
+            bdry = makeBoundary(xB)
+            chiller = makeChiller(xC)
             sys = System(bdry, chiller)
+            print(sys,file=log)
             
-            with open(outfile,'w') as f:
-                print("Q_evap=",chiller.Q_evap, file=f)
+            with open(outfile,'w') as fout:
+                print("Q_evap=",chiller.Q_evap, file=fout)
+                sum_g_barrier = 0;
                 for row in sys.data:
                     name, deltaT, epsilon, UA, Qhx = row
-                    print("UA_{}={}".format(name,UA))
-                    print("deltaT_{}={}".format(name,deltaT))
+                    print("UA_{}={}".format(name,Decimal(UA)),file=fout)
+                    print("deltaT_{}={}".format(name,Decimal(deltaT)),file=fout)
+                    sum_g_barrier += deltaT;
+                print("sum_g_barrier={}".format(Decimal(sum_g_barrier)),file=fout)
+                mu = 3 / stepNumber
+                print("mu={}".format(mu),file=fout)
+                
         except:
-            t,e,tb = sys.exc_info()
-            print('Caught ')
+            traceback.print_exc(file=log)
+
+if __name__ == "__main__":
+    import sys # command args
+    import traceback # display errors into log
+    infile,outfile,logfile = sys.argv[1:4]
+    import json # read input file with standard, structured format
+    from decimal import Decimal # convert 'inf' to 'Infinity' etc
+    
+    with open(logfile, 'w') as log:
+        print('infile="{}"'.format(infile),file=log)
+        print('outfile="{}"'.format(outfile),file=log)
+        print('logfile="{}"'.format(logfile),file=log)
+        
+        try:
+            with open(infile) as fin:
+                data = json.load(fin)
+            stepNumber=data['stepNumber'] 
+            UAgoal = data['UAgoal']
+            xB = data['xB']
+            xC = data['xC']
+            print('UAgoal={}'.format(UAgoal),file=log)
+            print('xB={}'.format(xB),file=log)
+            print('xC={}'.format(xC),file=log)
+            bdry = makeBoundary(xB)
+            chiller = makeChiller(xC)
+            sys = System(bdry, chiller)
+            print(sys,file=log)
+            barrier, penalty = systemConstraints(sys, UAgoal)
+            
+            with open(outfile,'w') as fout:
+                if np.isinf(barrier) or np.isinf(penalty):
+                    print("Q_evap=",-1, file=fout)
+                    print("barrier=",0, file=fout)
+                    print("penalty=",0, file=fout)
+                else:
+                    print("Q_evap=",chiller.Q_evap, file=fout)
+                    print("barrier=",barrier, file=fout)
+                    print("penalty=",penalty, file=fout)
+                
+        except:
+            traceback.print_exc(file=log)
+
             
     
         

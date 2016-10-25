@@ -1,0 +1,20 @@
+infile="x.txt"
+outfile="f.txt"
+logfile="simlog.txt"
+UAgoal=100.0
+xB=[400.0, 1.0, 305.0, 3.0, 305.0, 5.0, 285.0, 4.0, 305.0, 0.15]
+xC=[0.31, 273.65, 322.15, 326.65, 323.65, 379.65]
+Traceback (most recent call last):
+  File "C:\Users\nfette\Documents\GitHub\openACHP\src\system_aqua1.py", line 431, in <module>
+    sys = System(bdry, chiller)
+  File "C:\Users\nfette\Documents\GitHub\openACHP\src\system_aqua1.py", line 102, in __init__
+    self.hxs['rect'] = hxci(boundary.rectifierReject, chiller.getRectifierStream())
+  File "C:\Users\nfette\Documents\GitHub\openACHP\src\ammonia1.py", line 750, in getRectifierStream
+    self.gen_reflux_inlet,self.m_gen_reflux)
+  File "C:\Users\nfette\Documents\GitHub\openACHP\src\ammonia1.py", line 302, in __init__
+    self.T = scipy.interpolate.PchipInterpolator(q_points, T_points)
+  File "C:\Program Files (x86)\Python35-32\lib\site-packages\scipy\interpolate\_cubic.py", line 103, in __init__
+    _b = BPoly.from_derivatives(x, data, orders=None)
+  File "C:\Program Files (x86)\Python35-32\lib\site-packages\scipy\interpolate\interpolate.py", line 1586, in from_derivatives
+    raise ValueError("x coordinates are not in increasing order")
+ValueError: x coordinates are not in increasing order

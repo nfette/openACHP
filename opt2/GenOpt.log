@@ -1,0 +1,28 @@
+GenOpt(R) Optimization Version 3.1.1, March 29, 2016
+
+Lawrence Berkeley National Laboratory
+http://simulationresearch.lbl.gov
+Michael Wetter, MWetter@lbl.gov
+
+GenOpt Copyright (c) 1998-2016, The Regents of the
+University of California, through Lawrence Berkeley
+National Laboratory (subject to receipt of any 
+required approvals from the U.S. Dept. of Energy).
+All rights reserved.
+
+The development of GenOpt is supported by
+the U.S. Department of Energy (DOE),
+the Swiss Academy of Engineering Sciences (SATW),
+the Swiss National Energy Fund (NEFF), and
+the Swiss National Science Foundation (SNSF).
+_______________________________________________________________
+
+Configuration file : C:\Users\nfette\Documents\GitHub\openACHP\opt2\optWin.ini
+Command file       : C:\Users\nfette\Documents\GitHub\openACHP\opt2\command.txt
+
+Optimization started  at : Tue Oct 25 09:30:28 MST 2016
+Optimization finished at : Tue Oct 25 09:34:05 MST 2016
+Execution time           :            00:03:37
+_______________________________________________________________
+
+Optimization completed successfully.
