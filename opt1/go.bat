@@ -1,2 +1,2 @@
-set genopt=C:\Users\nfette\Documents\scratch\java\JavaProject2\dist\JavaProject2.jar
+set genopt="C:\Program Files\genopt\genopt.jar"
 %genopt% optWin.ini

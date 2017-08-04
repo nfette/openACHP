@@ -17,41 +17,25 @@ the Swiss National Energy Fund (NEFF), and
 the Swiss National Science Foundation (SNSF).
 _______________________________________________________________
 
-Configuration file : C:\Users\nfette\Documents\GitHub\openACHP\opt1\optWin.ini
-Command file       : C:\Users\nfette\Documents\GitHub\openACHP\opt1\command.txt
+Configuration file : C:\Users\user1\Documents\GitHub\openACHP\opt1\optWin.ini
+Command file       : C:\Users\user1\Documents\GitHub\openACHP\opt1\command.txt
 
-Optimization started  at : Fri Oct 21 12:42:48 MST 2016
-Optimization finished at : Fri Oct 21 12:44:04 MST 2016
-Execution time           :            00:01:16
+Optimization started  at : Fri Aug 04 15:28:04 PDT 2017
+Optimization finished at : Fri Aug 04 15:28:07 PDT 2017
+Execution time           :            00:00:02
 _______________________________________________________________
 
 Optimization terminated with error.
 
 Error message:
 **************
-genopt.lang.OptimizerException: 
-C:\Users\nfette\Documents\GitHub\openACHP\opt1\tmp-genopt-run-44\simlog.txt: Following error was found:
-Error on line 19:
-       raise ValueError("x coordinates are not in increasing order")
+java.lang.Exception: 
 
-Error on line 20:
-   ValueError: x coordinates are not in increasing order
+Exception in executing the simulation program
 
-Simulation working directory : 'C:\Users\nfette\Documents\GitHub\openACHP\opt1\tmp-genopt-run-44'
-Command string               : 'python "C:\Users\nfette\Documents\GitHub\openACHP\src\system_aqua1.py" "x.txt" "f.txt" "simlog.txt"'
+Simulation working directory : 'C:\Users\user1\Documents\GitHub\openACHP\opt1\tmp-genopt-run-1'
+Command string               : 'python "C:\Users\user1\Documents\GitHub\openACHP\src\system_aqua1.py" "x.txt" "f.txt" "simlog.txt"'
+Exception message: 
+Cannot run program "python" (in directory "C:\Users\user1\Documents\GitHub\openACHP\opt1\tmp-genopt-run-1"): CreateProcess error=2, The system cannot find the file specified
 
 GenOpt terminated with error.
-
-
-Info messages:
-**************
-Info 1: Simulation 44: Caught 'genopt.lang.OptimizerException' with message:   C:\Users\nfette\Documents\GitHub\openACHP\opt1\tmp-genopt-run-44\simlog.txt: Following error was found:
-Error on line 19:
-       raise ValueError("x coordinates are not in increasing order")
-
-Error on line 20:
-   ValueError: x coordinates are not in increasing order
-
-Simulation working directory : 'C:\Users\nfette\Documents\GitHub\openACHP\opt1\tmp-genopt-run-44'
-Command string               : 'python "C:\Users\nfette\Documents\GitHub\openACHP\src\system_aqua1.py" "x.txt" "f.txt" "simlog.txt"'
-   Try to evaluate simulation a second time.
