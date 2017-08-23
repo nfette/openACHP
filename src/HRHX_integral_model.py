@@ -299,6 +299,124 @@ class counterflow_integrator(object):
             UA = scipy.integrate.quad(func,0,Q)[0]
         return DeltaT,epsilon,UA
         
+def UA_by_LMTD(Q, Tc_in, Tc_out, Th_in, Th_out):
+    """Implements the LMTD equation to compute UA value for a counterflow HX."""
+    Cf = 1
+    dt_cold_end = Th_out - Tc_in
+    dt_hot_end = Th_in - Tc_out
+    LMTD = Cf * (dt_hot_end - dt_cold_end) / np.log(dt_hot_end / dt_cold_end)
+    UA = Q / LMTD
+    return UA
+    
+def UA_quad(Q,Tc_points,Th_points):
+    """Implements the LMTD equation to compute UA value for a counterflow HX."""
+    pass
+
+class counterflowPoints(object):
+    """Represents a heat exchanger between two predefined counterflowing
+    streams, each described by a monotonic list of (q,T) points with q
+    monotonically increasing.
+    
+    Be sure to choose consistent units for both heat and temperature points.
+    
+    For example::
+        
+        cold = streamPoints([(0,100), (1,101), (2,103)])
+        hot = streamPoints([(-2,107), (-1,109), (0,110)])
+        cfhx = counterflowPoints(self,cold,hot)
+    
+    Sign convention:
+    
+    * q > 0: heat is transferred into stream (cold stream is heating up)
+    * q < 0: heat is transferred out of stream (hot stream is cooling down)
+    """
+    def __init__(self, cold, hot, useHotT=False, initQmax=False):
+        self.cold = cold
+        self.hot = hot
+        self.useHotT = useHotT
+        # Functions for Qmax
+        self.func1 = lambda Q: Q+self.cold.q(self.hot.T(-Q))
+        self.func2 = lambda Q: Q-self.hot.q(self.cold.T(Q))
+        
+        if initQmax:
+            self.calcQmax()
+        else:
+            self.Qmax = np.inf
+            
+    def calcUA(self,Q):
+        # Q > is total heat transferred into cold stream, and q is local cum.
+        # 
+        self.cold
+        ua = scipy.integrate.quad(func,0,Q)[0]
+        epsilon = Q / self.Qmax
+        if epsilon > 1:
+            raise ValueError("Q given [{}] is higher than Q maximum [{}];"\
+            " effectiveness [{}] > 1.".format(Q,self.Qmax,epsilon))
+        if eff:            
+            return ua, epsilon
+        else:
+            return ua
+            
+    def calcQ(self,UA):
+        func = lambda Q:(self.calcUA(Q)-UA)**2
+        constraints = [{"type":"ineq",
+                       "fun":lambda Q: Q},
+                        {"type":"ineq",
+                       "fun":lambda Q: self.Qmax-Q}]
+        return scipy.optimize.minimize(func,0,constraints=constraints).x[0]
+    def calcQmax(self,extra=False,brute=False):
+        # Preliminary Max Q based on inlet temperatures only
+        qc = min(self.func1(0),self.func2(0))
+        #print("qc = ",qc)
+        lim = lambda Q: qc-Q
+        constraints = [{"type":"ineq",
+                       "fun":lambda Q: Q,
+                       "jac":lambda Q: 1},
+                       {"type":"ineq",
+                        "fun":lim,
+                        "jac":lambda Q: -1}]
+        if brute:
+            opt1 = scipy.optimize.differential_evolution(self.func1,[(0,qc)])
+            opt2 = scipy.optimize.differential_evolution(self.func2,[(0,qc)])
+            #print(opt1)
+            #print(opt2)
+        else:
+            opt1 = scipy.optimize.minimize(self.func1,0,constraints=constraints)
+            opt2 = scipy.optimize.minimize(self.func2,0,constraints=constraints)
+            #print(opt1)
+            #print(opt2)
+        self.Qmax = min(np.asscalar(opt1.fun),np.asscalar(opt2.fun))
+        #self.Qmax = np.asscalar(opt.x)
+        if extra:
+            return opt1
+        else:
+            return self.Qmax
+            
+    def calcDistanceT(self, Q):
+        """Returns DeltaT, the least temperature difference between hot and cold streams,
+        given the actual heat flow between them. This serves as like metric for
+        separation.
+        
+        DeltaT = inf(T_hot - T_cold)
+        
+        DeltaT > 0: Normal conditions
+        DeltaT = 0: Pinch point is touching
+        DeltaT < 0: The given Q has exceeded Qmax
+        """
+        f = lambda q: self.hot.T(q-Q)-self.cold.T(q)
+        opt=scipy.optimize.minimize_scalar(f,bounds=(0,Q),method="bounded")
+        #print(opt)
+        return opt.fun
+    
+    def calcUA2(self,Q):
+        DeltaT = self.calcDistanceT(Q)
+        epsilon = Q / self.Qmax
+        if DeltaT <= 0:
+            UA = np.inf            
+        else:
+            func = lambda q: 1./(self.hot.T(q-Q)-self.cold.T(q))
+            UA = scipy.integrate.quad(func,0,Q)[0]
+        return DeltaT,epsilon,UA
 
 def plotFlow(ci,figure=None,Qactual=None):
     import matplotlib.pyplot as plt
