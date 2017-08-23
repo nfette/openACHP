@@ -1,0 +1,3 @@
+Q_evap= -1
+barrier= 0
+penalty= 0
