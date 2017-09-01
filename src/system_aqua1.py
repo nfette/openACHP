@@ -370,7 +370,7 @@ def hasher(x):
     h = hashlib.md5(x.astype(np.double)).hexdigest()
     return h
     
-def makeOrGetProblemForBoundary(xB,U,xC, method=None, options=None, folder='data'):
+def makeOrGetProblemForBoundary(xB,U,xC, method=None, options=None, folder='data', create=False):
     """Wrap the minimizer and problem with disk storage.
     If the given boundary constraint has been tried before, the data file
     in ``folder`` will be loaded to save time.
@@ -389,6 +389,9 @@ def makeOrGetProblemForBoundary(xB,U,xC, method=None, options=None, folder='data
         Passed directly to minimize
     folder : string, optional
         Path to the data folder relative to ../ (defaults to 'data')
+    create : bool, optional
+        Whether optimization should proceed if the problem is not found on disk
+        (defaults to False).
     
     Returns
     =======
@@ -418,24 +421,25 @@ def makeOrGetProblemForBoundary(xB,U,xC, method=None, options=None, folder='data
         opt,err = None,None
         bdry = makeBoundary(xB)
         p = Problem(bdry, U, constraintMode='expit')
-        
-        try:
-            opt = minimize(p.objective,
-                           xC,
-                           constraints=p.constraints,
-                           method=method,
-                           options=options)
-            print(opt)
-        except:
-            import sys
-            c,err,tb = sys.exc_info()
-            print(err)
-        
-        print("Saving to ", fname)
-        # Now store the data
-        data = xB,bdry,p,opt,err
-        with open(fname,'wb') as f:
-            pickle.dump(data,f)
+
+        if create:
+            try:
+                opt = minimize(p.objective,
+                               xC,
+                               constraints=p.constraints,
+                               method=method,
+                               options=options)
+                print(opt)
+            except:
+                import sys
+                c,err,tb = sys.exc_info()
+                print(err)
+
+            print("Saving to ", fname)
+            # Now store the data
+            data = xB,bdry,p,opt,err
+            with open(fname,'wb') as f:
+                pickle.dump(data,f)
         
     return xB,bdry,p,opt,err
     
