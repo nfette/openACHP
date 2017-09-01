@@ -1,0 +1,11 @@
+name: openACHP
+channels:
+dependencies:
+  - numpy
+  - scipy
+  - matplotlib
+  - jupyter
+  - git
+  - pip:
+    - tabulate
+    - CoolProp
