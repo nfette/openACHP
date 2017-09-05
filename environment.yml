@@ -1,11 +1,13 @@
-name: openACHP
+#name: openachp
 channels:
+  - defaults
 dependencies:
   - numpy
   - scipy
   - matplotlib
   - jupyter
   - git
-  - pip:
+- pip:
     - tabulate
     - CoolProp
+
