@@ -138,18 +138,38 @@ def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
     plt.ylabel('Optimal cooling capacity')
     plt.show()
 
-for method,folder in [('COBYLA','data'),
-                      (None,'data2'),
-                      ('Nelder-Mead','data3'),
-                      ('Powell','data4'),
-                      ('CG','data5'),
-                      ('BFGS','data6'),
-                      ('Newton-CG','data7'),
-                      ('L-BFGS-B','data8'),
-                      ('TNC','data9'),
-                      ('SLSQP','data10'),
-                      ('dogleg','data11'),
-                      ('trust-ncg','data12')]:
+trials = dict(data=dict(method='COBYLA', options=dict(rhobeg=0.01)),
+              data2=dict(method=None),
+              data3=dict(method='Nelder-Mead'),
+              data4=dict(method='Powell'),
+              data5=dict(method='CG'),
+              data6=dict(method='BFGS'),
+              data7=dict(method='Newton-CG'),
+              data8=dict(method='L-BFGS-B'),
+              data9=dict(method='TNC'),
+              data10=dict(method='SLSQP'),
+              data11=dict(method='dogleg'),
+              data12=dict(method='trust-ncg'),
+          )
+
+if __name__ == "__main__":
+    for method, folder in [('COBYLA', 'data'),
+                           (None, 'data2'),
+                           ('Nelder-Mead', 'data3'),
+                           ('Powell', 'data4'),
+                           ('CG', 'data5'),
+                           ('BFGS', 'data6'),
+                           ('Newton-CG', 'data7'),
+                           ('L-BFGS-B', 'data8'),
+                           ('TNC', 'data9'),
+                           ('SLSQP', 'data10'),
+                           ('dogleg', 'data11'),
+                           ('trust-ncg', 'data12')]:
         pass
-for method,folder in [('COBYLA','data'),]:
-    playback(method,folder)
+    #for method, folder in [('COBYLA', 'data'), ]:
+    #    playback(method, folder)
+
+    for folder in trials.keys():
+        args = trials[folder]
+        #playback(args['method'],folder)
+        print(folder, args)
