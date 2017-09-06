@@ -134,7 +134,7 @@ def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
         
     plt.figure()
     plt.plot(rejectTT,QQmax)
-    plt.xlabel('Rejectiont temperature')
+    plt.xlabel('Rejection temperature')
     plt.ylabel('Optimal cooling capacity')
     plt.show()
 
