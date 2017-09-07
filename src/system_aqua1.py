@@ -237,10 +237,12 @@ class Problem(object):
             # Hard constraint mode: objective function modified
             self.constraints = []
 
-    """Return the value of the objective function to minimize. This is
-    :math:`-Q_{evap}` modified depending on constraintMode."""
+
 
     def objective(self, x, stepNumber=1):
+        """Return the value of the objective function to minimize. This is
+        :math:`-Q_{evap}` modified depending on constraintMode.
+        """
         Q, cons = self.lookup(x, printing=True)
         if self.constraintMode == 'expit':
             mu = self.mu
@@ -455,6 +457,8 @@ def makeOrGetProblemForBoundary(xB, U, xC, method=None, options=None, folder='da
 
 
 def main1():
+    """Script to try out your options for optimization"""
+
     # bdry, xC0, ch, sys = main()
     U = 100
     xB = [400, 1, 305, 3, 305, 5, 285, 4, 305, 0.15]
@@ -471,7 +475,8 @@ def main1():
     # "catol":0.1
 
     bdry = makeBoundary(xB)
-    p = Problem(bdry, U, hardConstraints=True)
+    # p = Problem(bdry, U, hardConstraints=True)
+    p = Problem(bdry, U, constraintMode='expit')
     opt = basinhopping(p.objective, xC, niter=3,
                        minimizer_kwargs=dict(options=dict(maxiter=2)))
     # tol = 1
@@ -524,11 +529,14 @@ def main1():
 
 
 def main2():
+    """Script to run with GenOpt, using a stupid barrier function"""
+
     import sys  # command args
     import traceback  # display errors into log
-    infile, outfile, logfile = sys.argv[1:4]
     import json  # read input file with standard, structured format
     from decimal import Decimal  # convert 'inf' to 'Infinity' etc
+
+    infile, outfile, logfile = sys.argv[1:4]
 
     with open(logfile, 'w') as log:
         print('infile="{}"'.format(infile), file=log)
@@ -566,13 +574,12 @@ def main2():
             traceback.print_exc(file=log)
 
 
-if __name__ == "__main__":
-    import sys  # command args
+def main3(infile, outfile, logfile):
+    """Script to run with GenOpt, using more intelligent constraints."""
+
     import traceback  # display errors into log
     import json  # read input file with standard, structured format
     from decimal import Decimal  # convert 'inf' to 'Infinity' etc
-
-    infile, outfile, logfile = sys.argv[1:4]
 
     with open(logfile, 'w') as log:
         print('infile="{}"'.format(infile), file=log)
@@ -607,3 +614,8 @@ if __name__ == "__main__":
 
         except:
             traceback.print_exc(file=log)
+
+
+if __name__ == "__main__":
+    import sys  # command args
+    main3(*sys.argv)
