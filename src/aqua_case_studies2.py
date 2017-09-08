@@ -89,11 +89,16 @@ def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
             
         # Mask the output by validity and find the maximum
         mask = (po['cons'] >= 0).all(axis=1)
+        maskzero = np.zeros_like(po['Q'])
+        maskzero[mask] = 1
         masknan = np.zeros_like(po['Q'])
         masknan.fill(np.nan)
         masknan[mask] = 1
         try:
-            Qmax = po['Q'][mask].max()
+            Q = po['Q'].copy()
+            Q[np.logical_not(mask)] = 0
+            imax = Q.argmax()
+            Qmax = Q[imax]
         except:
             Qmax = 0
         QQmax.append(Qmax)
@@ -137,6 +142,8 @@ def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
     plt.xlabel('Rejection temperature')
     plt.ylabel('Optimal cooling capacity')
     plt.show()
+
+    return (rejectTT, QQmax)
 
 trials = dict(data=dict(method='COBYLA', options=dict(rhobeg=0.01)),
               data2=dict(method=None),
