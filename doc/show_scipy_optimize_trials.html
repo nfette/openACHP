@@ -36171,6 +36171,7 @@ uyUbAAAAAElFTkSuQmCC
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <h3 id="Discussion">Discussion<a class="anchor-link" href="#Discussion">&#182;</a></h3><p>To critique the results: first, for optimal cooling capacity vs heat rejection source temperature, I would expect to see a monotonically decreasing trend, smoothness, and agreement between several of the optimization methods. However, the curves are generally jumpy and several have a drop at the lowest temperature. Admittedly, some of the results for the optimal cooling capacity vs heat rejection source temperature are "not too bad", as in having roughly the expected trend allowing for, say, 20% disparity (cases <code>data</code>, <code>data3</code>, <code>data4</code>, <code>data5</code>, and <code>data6</code>). Secondly, regarding convergence, we can discuss adherence to constraints and speed. Blank intervals on the convergence plots are used to indicate that the optimizer gave the model a non-feasible input. We can see that this happens rather frequently. For speed, many of the optimizers run at around 1000 iterations, which seems not too bad; however, each iteration takes about a second for the model to solve. So we either need a faster model solver or faster convergence in order to make a user-friendly tool that approximates a real-time response. Notably, the COBYLA method in <code>data</code> converges very quickly for some, but not all, of the inputs. A possible approach is to build a fast, approximate model to get an initial guess at the optimum design, then finish optimizing with the full accuracy model.</p>
+<p>Toward the goal of having the faster, approximate model, I started creating some classes to use UA-LMTD style equations; see <code>class counterflowPoints</code> in <code>HRHX_integral_model.py</code> at commit <a href="https://github.com/nfette/openACHP/commit/4f2661c7986c10031ed0cd0fb02f309161905a1e">4f2661c</a>.</p>
 
 </div>
 </div>
@@ -36283,7 +36284,7 @@ uyUbAAAAAElFTkSuQmCC
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[105]:</div>
+<div class="prompt input_prompt">In&nbsp;[165]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">numpy</span> <span class="k">import</span> <span class="n">genfromtxt</span><span class="p">,</span> <span class="n">dtype</span>
@@ -36297,25 +36298,29 @@ uyUbAAAAAElFTkSuQmCC
         <span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="nb">bytes</span><span class="p">(</span><span class="n">html</span><span class="p">,</span><span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">decode</span><span class="p">()))</span>
 
 <span class="c1"># Borrowed from http://blog.dornea.nu/2014/08/28/using-jquery-datatables-with-ipython/</span>
+<span class="c1"># Fix:</span>
+<span class="c1">#   - use https to match target protocol</span>
+<span class="c1">#   - use format() instead of string substitute</span>
+<span class="c1">#   - updated links, see datatables.net</span>
 <span class="kn">import</span> <span class="nn">uuid</span>
 <span class="k">def</span> <span class="nf">DataTable</span><span class="p">(</span><span class="n">html</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot; Prints a pandas.DataFrame as JQuery DataTables &quot;&quot;&quot;</span>
-    <span class="kn">from</span> <span class="nn">IPython.display</span> <span class="k">import</span> <span class="n">HTML</span>
+    <span class="sd">&quot;&quot;&quot; Prints a table as JQuery DataTables &quot;&quot;&quot;</span>
     <span class="c1"># Generate random container name</span>
     <span class="n">id_container</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid1</span><span class="p">()</span>
     <span class="n">output</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
 <span class="s2">        &lt;div id=&quot;datatable-container-</span><span class="si">{idc}</span><span class="s2">&quot;&gt;</span>
-<span class="s2">            &lt;link rel=&quot;stylesheet&quot; type=&quot;text/css&quot; href=&quot;http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/css/jquery.dataTables.css&quot;&gt;</span>
-<span class="s2">            &lt;link rel=&quot;stylesheet&quot; type=&quot;text/css&quot; href=&quot;http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/css/jquery.dataTables_themeroller.css&quot;&gt;</span>
-<span class="s2">            &lt;script type=&quot;text/javascript&quot; charset=&quot;utf8&quot; src=&quot;http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/jquery.dataTables.min.js&quot;&gt;&lt;/script&gt;</span>
+<span class="s2">            &lt;!--</span>
+<span class="s2">            &lt;link rel=&quot;stylesheet&quot; type=&quot;text/css&quot; href=&quot;https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/css/jquery.dataTables.css&quot;&gt;</span>
+<span class="s2">            &lt;link rel=&quot;stylesheet&quot; type=&quot;text/css&quot; href=&quot;https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/css/jquery.dataTables_themeroller.css&quot;&gt;</span>
+<span class="s2">            &lt;script type=&quot;text/javascript&quot; charset=&quot;utf8&quot; src=&quot;https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/jquery.dataTables.min.js&quot;&gt;&lt;/script&gt;</span>
+<span class="s2">            --&gt;</span>
+<span class="s2">            &lt;link rel=&quot;stylesheet&quot; type=&quot;text/css&quot; href=&quot;https://cdn.datatables.net/1.9.4/css/jquery.dataTables.css&quot;&gt;</span>
+<span class="s2">            &lt;script type=&quot;text/javascript&quot; charset=&quot;utf8&quot; src=&quot;https://cdn.datatables.net/1.9.4/js/jquery.dataTables.js&quot;&gt;&lt;/script&gt;</span>
 
 <span class="s2">            &lt;script type=&quot;text/javascript&quot;&gt;</span>
-<span class="s2">                var url = window.location.href;</span>
-<span class="s2">                </span>
 <span class="s2">                $(document).ready(function() {{</span>
 <span class="s2">                        $(&#39;#datatable-container-</span><span class="si">{idc}</span><span class="s2"> table&#39;).dataTable();</span>
 <span class="s2">                }});</span>
-<span class="s2">                </span>
 <span class="s2">            &lt;/script&gt;</span>
 <span class="s2">            &lt;!-- Insert table below --&gt;</span>
 <span class="s2">            </span><span class="si">{html}</span><span class="s2"></span>
@@ -36360,7 +36365,7 @@ uyUbAAAAAElFTkSuQmCC
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[108]:</div>
+<div class="prompt input_prompt">In&nbsp;[166]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">data1</span> <span class="o">=</span> <span class="n">show_output_listing</span><span class="p">(</span><span class="s1">&#39;../opt1/OutputListingAll.txt&#39;</span><span class="p">);</span>
@@ -36382,18 +36387,19 @@ uyUbAAAAAElFTkSuQmCC
 
 <div class="output_html rendered_html output_subarea ">
 
-        <div id="datatable-container-115a0d9c-97e7-11e7-ad73-989096c1fc0b">
-            <link rel="stylesheet" type="text/css" href="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/css/jquery.dataTables.css">
-            <link rel="stylesheet" type="text/css" href="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/css/jquery.dataTables_themeroller.css">
-            <script type="text/javascript" charset="utf8" src="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/jquery.dataTables.min.js"></script>
+        <div id="datatable-container-1509345c-9803-11e7-a3e7-989096c1fc0b">
+            <!--
+            <link rel="stylesheet" type="text/css" href="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/css/jquery.dataTables.css">
+            <link rel="stylesheet" type="text/css" href="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/css/jquery.dataTables_themeroller.css">
+            <script type="text/javascript" charset="utf8" src="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/jquery.dataTables.min.js"></script>
+            -->
+            <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.9.4/css/jquery.dataTables.css">
+            <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.9.4/js/jquery.dataTables.js"></script>
 
             <script type="text/javascript">
-                var url = window.location.href;
-                
                 $(document).ready(function() {
-                        $('#datatable-container-115a0d9c-97e7-11e7-ad73-989096c1fc0b table').dataTable();
+                        $('#datatable-container-1509345c-9803-11e7-a3e7-989096c1fc0b table').dataTable();
                 });
-                
             </script>
             <!-- Insert table below -->
             <table>
@@ -36695,7 +36701,7 @@ VjIwpm6LBRY7VVgC3G6JwPiDlQyMMcZYA7IxxhhLBsYYY7BkYIwxBksGxhhjsGRgjDEGSwbGGGOA
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[109]:</div>
+<div class="prompt input_prompt">In&nbsp;[167]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">show_output_listing</span><span class="p">(</span><span class="s1">&#39;../opt2/OutputListingAll.txt&#39;</span><span class="p">);</span>
@@ -36717,18 +36723,19 @@ VjIwpm6LBRY7VVgC3G6JwPiDlQyMMcZYA7IxxhhLBsYYY7BkYIwxBksGxhhjsGRgjDEGSwbGGGOA
 
 <div class="output_html rendered_html output_subarea ">
 
-        <div id="datatable-container-158bd312-97e7-11e7-b376-989096c1fc0b">
-            <link rel="stylesheet" type="text/css" href="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/css/jquery.dataTables.css">
-            <link rel="stylesheet" type="text/css" href="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/css/jquery.dataTables_themeroller.css">
-            <script type="text/javascript" charset="utf8" src="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/jquery.dataTables.min.js"></script>
+        <div id="datatable-container-1893ec06-9803-11e7-b737-989096c1fc0b">
+            <!--
+            <link rel="stylesheet" type="text/css" href="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/css/jquery.dataTables.css">
+            <link rel="stylesheet" type="text/css" href="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/css/jquery.dataTables_themeroller.css">
+            <script type="text/javascript" charset="utf8" src="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/jquery.dataTables.min.js"></script>
+            -->
+            <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.9.4/css/jquery.dataTables.css">
+            <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.9.4/js/jquery.dataTables.js"></script>
 
             <script type="text/javascript">
-                var url = window.location.href;
-                
                 $(document).ready(function() {
-                        $('#datatable-container-158bd312-97e7-11e7-b376-989096c1fc0b table').dataTable();
+                        $('#datatable-container-1893ec06-9803-11e7-b737-989096c1fc0b table').dataTable();
                 });
-                
             </script>
             <!-- Insert table below -->
             <table>
@@ -37422,7 +37429,7 @@ h+M4jpMJNxyO4zhOJtxwOI7jOJlww+E4juNk4v/if+uwiW4RbQAAAABJRU5ErkJggg==
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[110]:</div>
+<div class="prompt input_prompt">In&nbsp;[168]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">show_output_listing</span><span class="p">(</span><span class="s1">&#39;../opt3/OutputListingAll.txt&#39;</span><span class="p">);</span>
@@ -37444,18 +37451,19 @@ h+M4jpMJNxyO4zhOJtxwOI7jOJlww+E4juNk4v/if+uwiW4RbQAAAABJRU5ErkJggg==
 
 <div class="output_html rendered_html output_subarea ">
 
-        <div id="datatable-container-1acf0210-97e7-11e7-b6a7-989096c1fc0b">
-            <link rel="stylesheet" type="text/css" href="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/css/jquery.dataTables.css">
-            <link rel="stylesheet" type="text/css" href="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/css/jquery.dataTables_themeroller.css">
-            <script type="text/javascript" charset="utf8" src="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/jquery.dataTables.min.js"></script>
+        <div id="datatable-container-1a261936-9803-11e7-8ed3-989096c1fc0b">
+            <!--
+            <link rel="stylesheet" type="text/css" href="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/css/jquery.dataTables.css">
+            <link rel="stylesheet" type="text/css" href="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/css/jquery.dataTables_themeroller.css">
+            <script type="text/javascript" charset="utf8" src="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/jquery.dataTables.min.js"></script>
+            -->
+            <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.9.4/css/jquery.dataTables.css">
+            <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.9.4/js/jquery.dataTables.js"></script>
 
             <script type="text/javascript">
-                var url = window.location.href;
-                
                 $(document).ready(function() {
-                        $('#datatable-container-1acf0210-97e7-11e7-b6a7-989096c1fc0b table').dataTable();
+                        $('#datatable-container-1a261936-9803-11e7-8ed3-989096c1fc0b table').dataTable();
                 });
-                
             </script>
             <!-- Insert table below -->
             <table>
@@ -38192,7 +38200,7 @@ H9Ppl4G+Fh1uAAAAAElFTkSuQmCC
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
-<div class="prompt input_prompt">In&nbsp;[111]:</div>
+<div class="prompt input_prompt">In&nbsp;[169]:</div>
 <div class="inner_cell">
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">show_output_listing</span><span class="p">(</span><span class="s1">&#39;../opt4/OutputListingAll.txt&#39;</span><span class="p">);</span>
@@ -38214,18 +38222,19 @@ H9Ppl4G+Fh1uAAAAAElFTkSuQmCC
 
 <div class="output_html rendered_html output_subarea ">
 
-        <div id="datatable-container-1e05ab26-97e7-11e7-9c5f-989096c1fc0b">
-            <link rel="stylesheet" type="text/css" href="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/css/jquery.dataTables.css">
-            <link rel="stylesheet" type="text/css" href="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/css/jquery.dataTables_themeroller.css">
-            <script type="text/javascript" charset="utf8" src="http://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.9.0/jquery.dataTables.min.js"></script>
+        <div id="datatable-container-1c853a8a-9803-11e7-bda8-989096c1fc0b">
+            <!--
+            <link rel="stylesheet" type="text/css" href="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/css/jquery.dataTables.css">
+            <link rel="stylesheet" type="text/css" href="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/css/jquery.dataTables_themeroller.css">
+            <script type="text/javascript" charset="utf8" src="https://ajax.aspnetcdn.com/ajax/jquery.dataTables/1.10.5/jquery.dataTables.min.js"></script>
+            -->
+            <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.9.4/css/jquery.dataTables.css">
+            <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.9.4/js/jquery.dataTables.js"></script>
 
             <script type="text/javascript">
-                var url = window.location.href;
-                
                 $(document).ready(function() {
-                        $('#datatable-container-1e05ab26-97e7-11e7-9c5f-989096c1fc0b table').dataTable();
+                        $('#datatable-container-1c853a8a-9803-11e7-bda8-989096c1fc0b table').dataTable();
                 });
-                
             </script>
             <!-- Insert table below -->
             <table>
