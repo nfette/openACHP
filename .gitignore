@@ -56,3 +56,4 @@ doc/math-details.log
 *.gz
 doc/math-details.tex~
 doc/math-details2.log
+src/.ipynb_checkpoints/show_scipy_optimize_trials-checkpoint.ipynb
