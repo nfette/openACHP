@@ -211,7 +211,7 @@ class counterflow_integrator(object):
     q > 0: heat is transferred into stream (cold stream is heating up)
     q < 0: heat is transferred out of stream (hot stream is cooling down)
     """
-    def __init__(self, cold, hot, useHotT=False, initQmax=False):
+    def __init__(self, cold, hot, useHotT=False, initQmax=False, qmaxopts={}):
         self.cold = cold
         self.hot = hot
         self.useHotT = useHotT
@@ -220,7 +220,7 @@ class counterflow_integrator(object):
         self.func2 = lambda Q: Q-self.hot.q(self.cold.T(Q))
         
         if initQmax:
-            self.calcQmax()
+            self.calcQmax(**qmaxopts)
         else:
             self.Qmax = np.inf
             
@@ -266,8 +266,9 @@ class counterflow_integrator(object):
             opt2 = scipy.optimize.minimize(self.func2,0,constraints=constraints)
             #print(opt1)
             #print(opt2)
-        self.Qmax = min(np.asscalar(opt1.fun),np.asscalar(opt2.fun))
-        #self.Qmax = np.asscalar(opt.x)
+        # np.asscalar requires an ndarray as input. We don't have that!?
+        #self.Qmax = min(np.asscalar(opt1.fun),np.asscalar(opt2.fun))
+        self.Qmax = min(opt1.fun, opt2.fun)
         if extra:
             return opt1
         else:

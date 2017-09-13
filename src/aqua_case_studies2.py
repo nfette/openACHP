@@ -157,7 +157,7 @@ trials = dict(data=dict(method='COBYLA', options=dict(rhobeg=0.01)),
               data10=dict(method='SLSQP'),
               data11=dict(method='dogleg'),
               data12=dict(method='trust-ncg'),
-          )
+              )
 
 if __name__ == "__main__":
     for method, folder in [('COBYLA', 'data'),
