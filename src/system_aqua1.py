@@ -95,6 +95,16 @@ class Boundary(object):
             result.append((name, stream.T_inlet, stream.mdot, stream.cp))
         return tabulate.tabulate(result, "stream T_inlet mdot cp".split())
 
+    def _repr_html_(self):
+        import tabulate
+        result = []
+        for name in "heat absorberReject condReject cold rectifierReject".split():
+            stream = self.__getattribute__(name)
+            result.append((name, stream.T_inlet, stream.mdot, stream.cp))
+        return tabulate.tabulate(result,
+                                 "stream T_inlet mdot cp".split(),
+                                 tablefmt='html')
+
 
 class System(object):
     def __init__(self, boundary, chiller):
@@ -130,6 +140,13 @@ class System(object):
             tabulate.tabulate(self.data, "name deltaT epsilon UA Q".split()),
             self.totalUA)
         return result
+
+    def _repr_html_(self):
+        total_line = [["total", 0, 0, self.totalUA, 0]]
+        table = tabulate.tabulate(self.data + total_line,
+                                  "name deltaT epsilon UA Q".split(),
+                                  tablefmt='html')
+        return """{}""".format(table)
 
     def display(self):
         import matplotlib.pyplot as plt

@@ -1,0 +1,38 @@
+Commentary for Demo ammonia1
+
+I've already installed a Python environment with my favorite packages using Miniconda, and have cloned the openACHP repository from my GitHub page.
+
+I'll open the Jupyter Notebook ...
+
+To start, I'll import the modules I need ...
+
+Now I can create what I call a boundary for the chiller, in other words the specification of available resources, such as flow streams for bringing in or rejecting heat. I'll need that to evaluate heat exchangers later.
+
+In the output, we can see each of the flow streams defined where it goes into the chiller.
+
+Now I'll specify and create a chiller. This is an output from one of my optimization runs, so it is supposed to be the "best" chiller with a total heat exchange inventory of 100 kW/K. The specification I've chosen is based on temperatures at a few key points, which allows me to solve the model procedurally, without an iterative solver.
+
+We can see first a table of all the state points. I'll have to create a drawing to explain this later ...
+
+We also get a table of the performance variables, such as heat flows (with a convention that positive indicates heat flowing into the chiller).
+
+I'll also ask for some plots ...
+
+The first one shows heat vs temperature curves for each of the heat exchangers facing the external streams. Temperature is measured on the internal side of the heat exchanger. These curves are used to calculate heat exchanger size vs. total heat rate.
+
+The other two show some heat exchangers that are entirely internal, ie not facing the external streams. These were specified with effectiveness, so I don't need to calculate anything. But we can see that the curves are not linear because specific heats are changing or phase change is occuring through the process.
+
+Next I'll couple the boundary and chiller into a system object. I'll use it to evaluate the heat exchange parameters:
+
+- deltaT is the temperature difference at the pinch point.
+- epsilon is the effectiveness
+- UA is the heat exchanger overall heat transfer coefficient
+- Q is the heat flow through the exchanger. In this setup, it is determined by the chiller specification.
+
+Okay, the next thing I want to do is show how we can interact with the model and manually adjust the specification. Jupyter has some useful widgets, but I had to get the ipywidgets package from different conda channel (conda-forge) to get a version compatible with the notebook extensions module (then enable it on command line).
+
+This cell sets up the widgets ...
+
+Now I can play with the inputs and see how the system responds ...
+
+Thanks for watching!

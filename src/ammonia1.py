@@ -442,6 +442,40 @@ m_refrig,kg/s""".split()
             thevars[i] = var, unit, self.__getattribute__(var)
         return thevars
 
+    class CStateTable:
+        def __init__(self, points, states):
+            self.points = points
+            self.states = states
+        def doit(self, **kwargs):
+            return tabulate.tabulate([[p] \
+                                      + [s[name] for name in StateType.names]
+                                      for p, s in zip(self.points, self.states)],
+                                     StateType.names,
+                                     **kwargs)
+        def __repr__(self):
+            return self.doit()
+        def _repr_html_(self):
+            return self.doit(tablefmt="html")
+
+    def getStateTable(self):
+        return self.CStateTable(self.points, self.stateTable())
+
+    class CVariablesTable:
+        def __init__(self, thevars):
+            self.thevars = thevars
+            self.labels = "name unit value".split()
+        def doit(self, **kwargs):
+            return tabulate.tabulate(self.thevars,
+                                     self.labels,
+                                     **kwargs)
+        def __repr__(self):
+            return self.doit()
+        def _repr_html_(self):
+            return self.doit(tablefmt="html")
+
+    def getVariablesTable(self):
+        return self.CVariablesTable(self.variablesTable())
+
     def __repr__(self):
         # return tabulate.tabulate([self.states],StateType.names)
         states = tabulate.tabulate([[p] \
@@ -450,6 +484,22 @@ m_refrig,kg/s""".split()
         thevars = tabulate.tabulate(self.variablesTable(),
                                     'name unit value'.split())
         return states + '\n\n' + thevars
+
+    def _repr_html_(self):
+        states = tabulate.tabulate([[p]
+                                    + [s[name] for name in StateType.names]
+                                    for p, s in zip(self.points, self.stateTable())],
+                                   StateType.names,
+                                   tablefmt='html')
+        thevars = tabulate.tabulate(self.variablesTable(),
+                                    'name unit value'.split(),
+                                    tablefmt='html')
+        return """<h3>State points</h3>
+        {}
+        <br/>
+        <h3>Performance variables</h3>
+        {}
+        """.format(states, thevars)
 
     def update(self,
                x_refrig=0.999869,
@@ -779,9 +829,13 @@ m_refrig,kg/s""".split()
                                               self.m_refrig)
 
     def getRectifierStream(self):
-        return AmmoniaRefluxStream(self.gen_vapor_outlet, self.m_gen_vapor,
-                                   self.gen_reflux_inlet, self.m_gen_reflux,
-                                   debug=True)
+        try:
+            return AmmoniaRefluxStream(self.gen_vapor_outlet, self.m_gen_vapor,
+                                       self.gen_reflux_inlet, self.m_gen_reflux)
+        except:
+            return AmmoniaRefluxStream(self.gen_vapor_outlet, self.m_gen_vapor,
+                                       self.gen_reflux_inlet, self.m_gen_reflux,
+                                       debug=True)
 
     def getSHX(self, **kwargs):
         """Constructs and returns a model for the internal heat
@@ -804,34 +858,58 @@ m_refrig,kg/s""".split()
         plt.figure()
         plt.title("Internal streams")
         absorber = a.getAbsorberStream()
-        plotStream(absorber, (1.05 * a.Q_abs, 0), (a.weak_exp_outlet.T, a.rich_abs_outlet.T))
+        plotStream(absorber,
+                   (1.05 * a.Q_abs, 0),
+                   (a.weak_exp_outlet.T, a.rich_abs_outlet.T),
+                   {"label":"absorber"})
         gen = a.getGeneratorStream()
-        plotStream(gen, (0, 1.05 * a.Q_gen), (a.rich_shx_outlet.T, a.weak_gen_outlet.T))
+        plotStream(gen,
+                   (0, 1.05 * a.Q_gen),
+                   (a.rich_shx_outlet.T, a.weak_gen_outlet.T),
+                   {"label":"generator"})
         evap = a.getEvaporatorStream()
-        plotStream(evap, (0, 1.05 * a.Q_evap), (a.refrig_exp_outlet.T, a.refrig_evap_outlet.T))
+        plotStream(evap,
+                   (0, 1.05 * a.Q_evap),
+                   (a.refrig_exp_outlet.T, a.refrig_evap_outlet.T),
+                   {"label":"evaporator"})
         cond = a.getCondenserStream()
-        plotStream(cond, (1.05 * a.Q_cond, 0), (a.refrig_rect_outlet.T, a.refrig_cond_outlet.T))
+        plotStream(cond,
+                   (1.05 * a.Q_cond, 0),
+                   (a.refrig_rect_outlet.T, a.refrig_cond_outlet.T),
+                   {"label":"condenser"})
         rect = a.getRectifierStream()
-        plotStream(rect, (1.05 * a.Q_reflux, 0), (a.refrig_rect_outlet.T, a.gen_vapor_outlet.T))
+        plotStream(rect,
+                   (1.05 * a.Q_reflux, 0),
+                   (a.refrig_rect_outlet.T, a.gen_vapor_outlet.T),
+                   {"label":"rectifier"})
+        plt.legend(loc='best')
+        plt.xlabel("Heat (kW)")
+        plt.ylabel("Temperature (K)")
+        plt.ylim([273,400])
 
         # Internal streams
         shx = a.getSHX(initQmax=True) #, qmaxopts={"brute": True})
         HRHX_integral_model.plotFlow(shx, Qactual=a.Q_shx)
-        plt.title("SHX")
+        plt.title("Solution heat exchanger (SHX)")
+        plt.xlabel("Heat (kW)")
+        plt.ylabel("Temperature (K)")
         cehx = a.getCEHX(initQmax=True) #, qmaxopts={"brute": True})
         HRHX_integral_model.plotFlow(cehx, Qactual=a.Q_cehx)
-        plt.title("CEHX")
+        plt.title("Condenser-Evaporator heat exchanger (CEHX)")
+        plt.xlabel("Heat (kW)")
+        plt.ylabel("Temperature (K)")
 
 
-def plotStream(stream, qrange, Trange):
+def plotStream(stream, qrange, Trange, plotopts={}):
     import matplotlib.pyplot as plt
-    # First let's plot T(q)
+    # First let's plot T(q) as line
     q1 = np.linspace(*qrange)
     T1 = stream.T(q1)
-    l = plt.plot(q1, T1, '-')[0]
+    l = plt.plot(q1, T1, '-', **plotopts)[0]
+    # Now we print q(T) as dots
     T2 = np.linspace(*Trange)
     q2 = stream.q(T2)
-    plt.plot(q2, T2, '.', color=l.get_c())
+    plt.plot(q2, T2, '.', color=l.get_c(), **plotopts)
 
 
 def main():
