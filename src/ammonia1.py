@@ -307,8 +307,6 @@ class AmmoniaRefluxStream(object):
             q, T = self._x(z)
             q_points.append(q)
             T_points.append(T)
-        self.q = scipy.interpolate.PchipInterpolator(T_points, q_points)
-        self.T = scipy.interpolate.PchipInterpolator(q_points, T_points)
 
         if debug:
             print("Rectifier")
@@ -316,6 +314,13 @@ class AmmoniaRefluxStream(object):
             print("liquid_outliet = ", self.liquid_outlet)
             print("m_net, x_net = ", self.m_net, self.x_net)
             print(tabulate.tabulate(zip(q_points, T_points), ["q / kW", " T / K"]))
+
+        # TODO: check for non-increasing points before interpolate.
+        # Check for crossing over saturation and other causes...
+
+        self.q = scipy.interpolate.PchipInterpolator(T_points, q_points)
+        self.T = scipy.interpolate.PchipInterpolator(q_points, T_points)
+
 
     def _x(self, z_local):
         # Input z_local is the ammonia mass fraction in the liquid phase.
@@ -775,7 +780,8 @@ m_refrig,kg/s""".split()
 
     def getRectifierStream(self):
         return AmmoniaRefluxStream(self.gen_vapor_outlet, self.m_gen_vapor,
-                                   self.gen_reflux_inlet, self.m_gen_reflux)
+                                   self.gen_reflux_inlet, self.m_gen_reflux,
+                                   debug=True)
 
     def getSHX(self, **kwargs):
         """Constructs and returns a model for the internal heat
