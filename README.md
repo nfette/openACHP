@@ -1,4 +1,6 @@
 # openACHP
-Utilities for simple modelling of absorption cycle heat pumps
+Utilities for simple modelling of sorption cycle heat pumps. With Python!
 
-In progress. Check back later!
+Status: In progress. Check back later!
+
+Meanwhile, check some [documentation](https://nfette.github.io/openACHP) (mostly just some notebooks)
