@@ -5,13 +5,12 @@ from hw2_1 import CelsiusToKelvin as C2K
 import timeit
 import matplotlib.pyplot as plt
 
-def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
+def playback(method,folder,U=100,rejectTT=np.arange(20,61,5),output_sys_data=False):
     hashes = np.zeros_like(rejectTT, dtype='<U32')
     data = {}
     QQmax = []
     a_xc_max = []
-    fig1 = plt.figure()
-    fig2 = plt.figure()
+    a_system_data = []
 
     for i,rejectT in enumerate(rejectTT):
         rT = C2K(rejectT)
@@ -110,7 +109,14 @@ def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
             xc_max = xC0
         QQmax.append(q_max)
         a_xc_max.append(xc_max)
-    
+
+        if output_sys_data:
+            # Find the UA values for each heat exchanger
+            try:
+                sys = system_aqua1.System(p.bdry, system_aqua1.makeChiller(xc_max))
+                a_system_data.append(sys.data)
+            except:
+                a_system_data.append([])
         
         if True:
         
@@ -151,7 +157,7 @@ def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
     plt.ylabel('Optimal cooling capacity')
     plt.show()
 
-    return (rejectTT, QQmax, a_xc_max)
+    return (rejectTT, QQmax, a_xc_max, a_system_data)
 
 trials = dict(data=dict(method='COBYLA', options=dict(rhobeg=0.01)),
               data2=dict(method=None),
