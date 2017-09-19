@@ -9,6 +9,7 @@ def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
     hashes = np.zeros_like(rejectTT, dtype='<U32')
     data = {}
     QQmax = []
+    a_xc_max = []
     fig1 = plt.figure()
     fig2 = plt.figure()
 
@@ -95,13 +96,20 @@ def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
         masknan.fill(np.nan)
         masknan[mask] = 1
         try:
+            # Find the valid input that yielded the maximum Q
+            # Set Q to 0 for invalid inputs
             Q = po['Q'].copy()
             Q[np.logical_not(mask)] = 0
+            # Find the index and maximum
             imax = Q.argmax()
-            Qmax = Q[imax]
+            q_max = Q[imax]
+            # What was the corresponding input vector?
+            xc_max = p.input[imax]
         except:
-            Qmax = 0
-        QQmax.append(Qmax)
+            q_max = 0
+            xc_max = xC0
+        QQmax.append(q_max)
+        a_xc_max.append(xc_max)
     
         
         if True:
@@ -111,7 +119,7 @@ def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
             plt.plot(po['Q'] * masknan)
             plt.xlabel('iteration')
             plt.ylabel('Cooling capacity')
-            plt.title('Objective max = {}'.format(Qmax))
+            plt.title('Objective max = {}'.format(q_max))
         
         
         if False:
@@ -143,7 +151,7 @@ def playback(method,folder,U=100,rejectTT=np.arange(20,61,5)):
     plt.ylabel('Optimal cooling capacity')
     plt.show()
 
-    return (rejectTT, QQmax)
+    return (rejectTT, QQmax, a_xc_max)
 
 trials = dict(data=dict(method='COBYLA', options=dict(rhobeg=0.01)),
               data2=dict(method=None),
