@@ -9,6 +9,7 @@ import ees_interface
 from collections import namedtuple
 import sys
 import numpy as np
+import tabulate
 thismodule = sys.modules[__name__]
 
 molecular_mass_water = 18.015 # g/mol
@@ -25,6 +26,32 @@ standardOutvars = ['T', 'P', 'x', 'h', 's', 'u', 'v', 'Qu']
 standardUnits = ['K', 'bar', ' ', 'kJ/kg', 'kJ/kg-K', 'kJ/kg', 'm^3/kg', ' ']
 State = namedtuple('State',standardOutvars)
 StateType = np.dtype(dict(names=standardOutvars,formats='f'*8))
+
+def convert_state_list_to_array(state_list):
+    """Input a list of State objects, ouput an array of StateType."""
+    state_array = np.zeros(len(state_list), dtype=StateType)
+    for i, s in enumerate(state_list):
+        state_array[i] = s
+    return state_array
+
+class CStateTable:
+    def __init__(self, states, labels=None):
+        """Input states, an array of StateType, and labels, a list of
+        labels for the points. Makes printing table convenient."""
+        self.states = states
+        self.labels = labels
+        if labels is None:
+            self.labels = [''] * len(states)
+    def doit(self, **kwargs):
+        return tabulate.tabulate([[p] \
+                                  + [s[name] for name in StateType.names]
+                                  for p, s in zip(self.labels, self.states)],
+                                 StateType.names,
+                                 **kwargs)
+    def __repr__(self):
+        return self.doit()
+    def _repr_html_(self):
+        return self.doit(tablefmt="html")
 
 def splitCode1(code):
     return [code // 100, code // 10 % 10, code % 10]
@@ -204,16 +231,25 @@ class AmmoniaProps:
     def Qu(self,**kwargs):
         return self.props2(**kwargs).Qu
     def equilibriumStates(self, P, z):
-        # Return the liquid state at P,z,Qu=0,
-        # and the corresponding vapor state at P,T,Qu=1
+        """ Return the liquid state at P,z,Qu=0,
+        and the corresponding vapor state at P,T,Qu=1
+        """
         liquid = self.props2(P=P,x=z,Qu=0)
         vapor = self.props2(P=P,T=liquid.T,Qu=1)
         return liquid,vapor
     def equilibriumStates2(self, P, z_vapor):
-        # Return the vapor state at P,z_vapor,Qu=0,
-        # and the corresponding liquid state at P,T,Qu=0
+        """ Return the vapor state at P,z_vapor,Qu=1,
+        and the equilibrium liquid state at P,T,Qu=0
+        """
         vapor = self.props2(P=P,x=z_vapor,Qu=1)
         liquid = self.props2(P=P,T=vapor.T,Qu=0)
+        return liquid,vapor
+    def equilibriumStates3(self, P, T):
+        """ Return the liquid state at P,T,Qu=0,
+        and the corresponding vapor state at P,T,Qu=1
+        """
+        liquid = self.props2(P=P,T=T,Qu=0)
+        vapor = self.props2(P=P,T=T,Qu=1)
         return liquid,vapor
 
 if __name__ == "__main__":

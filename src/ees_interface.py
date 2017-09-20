@@ -15,7 +15,6 @@ was strictly python 2.7. However, on command line linux, enum works only
 with python3 (supported by enum documentation).
 """
 
-from __future__ import print_function
 import ctypes
 import enum
 import os.path

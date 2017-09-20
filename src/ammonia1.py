@@ -15,10 +15,9 @@ import numpy as np
 import scipy.interpolate
 import HRHX_integral_model
 
-from ammonia_props import AmmoniaProps, StateType, State
+from ammonia_props import AmmoniaProps, StateType, convert_state_list_to_array
 
 amm = AmmoniaProps()
-
 
 class stateIterator:
     def __init__(self, chiller):
@@ -126,7 +125,8 @@ class AmmoniaAbsorberStream(object):
             plt.show()
 
     def _x(self, x_local):
-        # Determine the refrigerant absorbed and local solution mass flow rate
+        """ Determine the refrigerant absorbed and local solution mass flow rate.
+        """
         x_weak = self.sat_inlet.x
         x_refrig = self.refrig_inlet.x
         x_rich = x_local
@@ -303,17 +303,26 @@ class AmmoniaRefluxStream(object):
         self.x_net = self.ammonia_net / self.m_net
 
         q_points, T_points = [], []
-        for z in np.linspace(self.x_net, vapor_inlet.x):
-            q, T = self._x(z)
+        a_T_vapor, a_x_liquid, a_h_liquid, a_h_vapor = None, None, None, None
+        if debug:
+            a_T_vapor, a_x_liquid, a_h_liquid, a_h_vapor = [], [], [], []
+
+        z_points = np.linspace(self.x_net, vapor_inlet.x)
+        for z in z_points:
+            q, T = self._x(z, a_T_vapor, a_x_liquid, a_h_liquid, a_h_vapor)
             q_points.append(q)
             T_points.append(T)
 
         if debug:
-            print("Rectifier")
-            print("vapor_inlet = ", self.vapor_inlet)
-            print("liquid_outliet = ", self.liquid_outlet)
+            print("="*20 + "Rectifier debug info" + "="*20)
+            print("vapor_inlet (gen_vapor_outlet) = ", self.vapor_inlet)
+            print("liquid_outlet (gen_reflux_inlet) = ", self.liquid_outlet)
             print("m_net, x_net = ", self.m_net, self.x_net)
-            print(tabulate.tabulate(zip(q_points, T_points), ["q / kW", " T / K"]))
+            print(tabulate.tabulate(
+                zip(z_points, a_x_liquid, a_T_vapor, T_points, a_h_vapor,
+                    a_h_liquid, q_points),
+                ["x vapor", "x liquid", "T vapor", "T liquid", "h vapor",
+                 "h liquid", "q (kW)"]))
 
         # TODO: check for non-increasing points before interpolate.
         # Check for crossing over saturation and other causes...
@@ -322,8 +331,17 @@ class AmmoniaRefluxStream(object):
         self.T = scipy.interpolate.PchipInterpolator(q_points, T_points)
 
 
-    def _x(self, z_local):
-        # Input z_local is the ammonia mass fraction in the liquid phase.
+    def _x(self, z_local, output_T_vapor = None, output_x_liquid = None,
+           output_h_liquid = None, output_h_vapor = None):
+        """Returns the amount of heat removed from the reflux stream between the
+        cross section where vapor enters and the cross section given, subject
+        to mass and species flow conservation and equilibrium.
+
+        Input z_local is the ammonia mass fraction in the vapor phase.
+
+        Warning: The underlying property function is not monotonic! Avoid this.
+        """
+
         liquid, vapor = amm.equilibriumStates2(self.vapor_inlet.P, z_local)
         # print(liquid, vapor)
         # Determine the amount of refrigerant vaporized and local states.
@@ -339,7 +357,45 @@ class AmmoniaRefluxStream(object):
             + self.m_reflux * self.liquid_outlet.h \
             - self.m_inlet * self.vapor_inlet.h
 
+        if output_T_vapor is not None:
+            output_T_vapor.append(vapor.T)
+        if output_x_liquid is not None:
+            output_x_liquid.append(x_liquid)
+        if output_h_liquid is not None:
+            output_h_liquid.append(liquid.h)
+        if output_h_vapor is not None:
+            output_h_vapor.append(vapor.h)
+
         return Q, liquid.T
+
+    def _t(self, t_local, output_vapor=None, output_liquid=None):
+        """Returns the amount of heat removed from the reflux stream between the
+        cross section where vapor enters and the cross section given, subject
+        to mass and species flow conservation and equilibrium.
+
+        Input t_local is the local temperature.
+        """
+
+        liquid, vapor = amm.equilibriumStates3(self.vapor_inlet.P, t_local)
+        # Determine the amount of refrigerant vaporized and local states.
+        x_net = self.x_net
+        m_net = self.m_net
+        x_vapor = vapor.x
+        x_liquid = liquid.x
+
+        m_liquid = m_net * (x_vapor - x_net) / (x_liquid - x_vapor)
+        m_vapor = m_net * (x_liquid - x_net) / (x_liquid - x_vapor)
+
+        Q = m_vapor * vapor.h - m_liquid * liquid.h \
+            + self.m_reflux * self.liquid_outlet.h \
+            - self.m_inlet * self.vapor_inlet.h
+
+        if output_vapor is not None:
+            output_vapor.append(vapor)
+        if output_liquid is not None:
+            output_liquid.append(liquid)
+
+        return Q
 
 
 class AmmoniaChiller(object):
@@ -441,21 +497,6 @@ m_refrig,kg/s""".split()
         for i, var, unit in zip(ii, self.vars, self.units):
             thevars[i] = var, unit, self.__getattribute__(var)
         return thevars
-
-    class CStateTable:
-        def __init__(self, points, states):
-            self.points = points
-            self.states = states
-        def doit(self, **kwargs):
-            return tabulate.tabulate([[p] \
-                                      + [s[name] for name in StateType.names]
-                                      for p, s in zip(self.points, self.states)],
-                                     StateType.names,
-                                     **kwargs)
-        def __repr__(self):
-            return self.doit()
-        def _repr_html_(self):
-            return self.doit(tablefmt="html")
 
     def getStateTable(self):
         return self.CStateTable(self.points, self.stateTable())
