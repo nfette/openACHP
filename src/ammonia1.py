@@ -13,9 +13,10 @@ from hw2_1 import KelvinToCelsius as K2C
 import tabulate
 import numpy as np
 import scipy.interpolate
+import scipy.optimize
 import HRHX_integral_model
 
-from ammonia_props import AmmoniaProps, StateType, convert_state_list_to_array
+from ammonia_props import AmmoniaProps, StateType, convert_state_list_to_array, CStateTable
 
 amm = AmmoniaProps()
 
@@ -29,6 +30,31 @@ class stateIterator:
 
     def __next__(self):
         return self.chiller.__getattribute__(self.i.__next__())
+
+
+class CVariablesTable:
+
+    def __init__(self, names, values, units=None):
+        """A convenience class for a list of variable names, units, and values.
+        TODO: utilize existing libraries ... maybe pandas.
+        """
+        dt = [('name', 'S256'), ('unit', 'S256'), ('value', 'f')]
+        self.table = np.zeros_like(names, dtype=dt)
+        self.table['name'] = names
+        self.table['value'] = values
+        self.table['unit'] = units
+
+    def tabulate(self, **kwargs):
+        return tabulate.tabulate(self.table,
+             self.table.dtype.names,
+             **kwargs
+        )
+
+    def __repr__(self):
+        return self.tabulate()
+
+    def _repr_html_(self):
+        return self.tabulate(tablefmt="html")
 
 
 class AmmoniaAbsorberStream(object):
@@ -300,28 +326,65 @@ class AmmoniaRefluxStream(object):
         # Determine net flow rate and net ammonia fraction
         self.m_net = self.m_inlet - self.m_reflux
         self.ammonia_net = m_inlet * vapor_inlet.x - m_reflux * liquid_outlet.x
+        good = (self.m_net >= 0) and (self.ammonia_net >= 0)
+        if not good:
+            raise ValueError("In rectifier, net mass or ammonia flow is negative.")
         self.x_net = self.ammonia_net / self.m_net
 
         q_points, T_points = [], []
-        a_T_vapor, a_x_liquid, a_h_liquid, a_h_vapor = None, None, None, None
+        #a_T_vapor, a_x_liquid, a_h_liquid, a_h_vapor = None, None, None, None
+        list_vapor, list_liquid = None, None
         if debug:
-            a_T_vapor, a_x_liquid, a_h_liquid, a_h_vapor = [], [], [], []
+            #a_T_vapor, a_x_liquid, a_h_liquid, a_h_vapor = [], [], [], []
+            list_vapor, list_liquid = [], []
 
-        z_points = np.linspace(self.x_net, vapor_inlet.x)
-        for z in z_points:
-            q, T = self._x(z, a_T_vapor, a_x_liquid, a_h_liquid, a_h_vapor)
-            q_points.append(q)
-            T_points.append(T)
-
-        if debug:
-            print("="*20 + "Rectifier debug info" + "="*20)
+            print("=" * 20 + "Rectifier debug info" + "=" * 20)
             print("vapor_inlet (gen_vapor_outlet) = ", self.vapor_inlet)
             print("liquid_outlet (gen_reflux_inlet) = ", self.liquid_outlet)
             print("m_net, x_net = ", self.m_net, self.x_net)
+
+        # This lookup has a bug: lookups are a non-monotonic function of x.
+        #z_points = np.linspace(self.x_net, vapor_inlet.x)
+        #for z in z_points:
+        #    q, T = self._x(z, list_vapor, list_liquid)
+        #    q_points.append(q)
+        #    T_points.append(T)
+
+        # Instead, let's parameterize by T.
+        # Figure out the minimum temperature we may need to estimate.
+        # Start by a lookup with inputs (P, x, Qu) to estimate T,
+        # then switch and use inputs (P, T, Qu) with iterative solve to match x.
+        T_guess = amm.props2(P=self.vapor_inlet.P, x=self.x_net, Qu=1).T
+        x_error = lambda alpha: (self.x_net - amm.props2(
+            P=self.vapor_inlet.P,
+            T=T_guess + np.exp(alpha),
+            Qu=1).x)
+        if debug:
+            print("T_guess (x = {}) = {}".format(self.x_net, T_guess))
+
+        #opt = scipy.optimize.fsolve(x_error, -100.)[0]
+        opt = -100.
+        T_min = T_guess + np.exp(opt)
+        T_max = vapor_inlet.T
+        if debug:
+            print("T_min, T_max = {}, {}".format(T_min, T_max))
+        T_points = np.linspace(T_min, T_max)
+        for t in T_points:
+            q, _ = self._t(t, list_vapor, list_liquid)
+            q_points.append(q)
+        q_points = np.array(q_points)
+
+        if debug:
+            qdiff = np.diff(q_points)
+            print(qdiff < 0)
+
+            a_vapor = convert_state_list_to_array(list_vapor)
+            a_liquid = convert_state_list_to_array(list_liquid)
+
             print(tabulate.tabulate(
-                zip(z_points, a_x_liquid, a_T_vapor, T_points, a_h_vapor,
-                    a_h_liquid, q_points),
-                ["x vapor", "x liquid", "T vapor", "T liquid", "h vapor",
+                zip(a_vapor['T'], a_liquid['T'], a_vapor['x'], a_liquid['x'],
+                    a_vapor['h'], a_liquid['h'], q_points),
+                ["T vapor", "T liquid", "x vapor", "x liquid", "h vapor",
                  "h liquid", "q (kW)"]))
 
         # TODO: check for non-increasing points before interpolate.
@@ -331,8 +394,7 @@ class AmmoniaRefluxStream(object):
         self.T = scipy.interpolate.PchipInterpolator(q_points, T_points)
 
 
-    def _x(self, z_local, output_T_vapor = None, output_x_liquid = None,
-           output_h_liquid = None, output_h_vapor = None):
+    def _x(self, z_local, output_vapor=None, output_liquid=None):
         """Returns the amount of heat removed from the reflux stream between the
         cross section where vapor enters and the cross section given, subject
         to mass and species flow conservation and equilibrium.
@@ -357,14 +419,10 @@ class AmmoniaRefluxStream(object):
             + self.m_reflux * self.liquid_outlet.h \
             - self.m_inlet * self.vapor_inlet.h
 
-        if output_T_vapor is not None:
-            output_T_vapor.append(vapor.T)
-        if output_x_liquid is not None:
-            output_x_liquid.append(x_liquid)
-        if output_h_liquid is not None:
-            output_h_liquid.append(liquid.h)
-        if output_h_vapor is not None:
-            output_h_vapor.append(vapor.h)
+        if output_vapor is not None:
+            output_vapor.append(vapor)
+        if output_liquid is not None:
+            output_liquid.append(liquid)
 
         return Q, liquid.T
 
@@ -395,7 +453,7 @@ class AmmoniaRefluxStream(object):
         if output_liquid is not None:
             output_liquid.append(liquid)
 
-        return Q
+        return Q, liquid.T
 
 
 class AmmoniaChiller(object):
@@ -490,57 +548,30 @@ m_refrig,kg/s""".split()
             states[i] = s2
         return states
 
-    def variablesTable(self):
-        dt = [('name', 'S256'), ('unit', 'S256'), ('value', 'f')]
-        thevars = np.zeros_like(self.vars, dtype=dt)
-        ii = range(len(thevars))
-        for i, var, unit in zip(ii, self.vars, self.units):
-            thevars[i] = var, unit, self.__getattribute__(var)
-        return thevars
-
     def getStateTable(self):
-        return self.CStateTable(self.points, self.stateTable())
-
-    class CVariablesTable:
-        def __init__(self, thevars):
-            self.thevars = thevars
-            self.labels = "name unit value".split()
-        def doit(self, **kwargs):
-            return tabulate.tabulate(self.thevars,
-                                     self.labels,
-                                     **kwargs)
-        def __repr__(self):
-            return self.doit()
-        def _repr_html_(self):
-            return self.doit(tablefmt="html")
+        return CStateTable(self.stateTable(), self.points)
 
     def getVariablesTable(self):
-        return self.CVariablesTable(self.variablesTable())
+        vals = [self.__getattribute__(var) for var in self.vars]
+        return CVariablesTable(self.vars, vals, self.units)
 
     def __repr__(self):
-        # return tabulate.tabulate([self.states],StateType.names)
-        states = tabulate.tabulate([[p] \
-                                    + [s[name] for name in StateType.names]
-                                    for p, s in zip(self.points, self.stateTable())], StateType.names)
-        thevars = tabulate.tabulate(self.variablesTable(),
-                                    'name unit value'.split())
-        return states + '\n\n' + thevars
+        return "{}\n{}".format(
+            self.getStateTable().__repr__(),
+            self.getVariablesTable().__repr__()
+        )
 
     def _repr_html_(self):
-        states = tabulate.tabulate([[p]
-                                    + [s[name] for name in StateType.names]
-                                    for p, s in zip(self.points, self.stateTable())],
-                                   StateType.names,
-                                   tablefmt='html')
-        thevars = tabulate.tabulate(self.variablesTable(),
-                                    'name unit value'.split(),
-                                    tablefmt='html')
-        return """<h3>State points</h3>
+        template = """<h3>State points</h3>
         {}
         <br/>
         <h3>Performance variables</h3>
         {}
-        """.format(states, thevars)
+        """
+        return template.format(
+            self.getStateTable()._repr_html_(),
+            self.getVariablesTable()._repr_html_()
+        )
 
     def update(self,
                x_refrig=0.999869,
@@ -869,14 +900,19 @@ m_refrig,kg/s""".split()
         return HRHX_integral_model.aquaStream(self.refrig_rect_outlet,
                                               self.m_refrig)
 
-    def getRectifierStream(self):
+    def getRectifierStream(self,retry=False):
         try:
             return AmmoniaRefluxStream(self.gen_vapor_outlet, self.m_gen_vapor,
-                                       self.gen_reflux_inlet, self.m_gen_reflux)
-        except:
-            return AmmoniaRefluxStream(self.gen_vapor_outlet, self.m_gen_vapor,
-                                       self.gen_reflux_inlet, self.m_gen_reflux,
-                                       debug=True)
+                                         self.gen_reflux_inlet, self.m_gen_reflux)
+        except Exception as e:
+            if retry:
+                return AmmoniaRefluxStream(
+                    self.gen_vapor_outlet, self.m_gen_vapor,
+                    self.gen_reflux_inlet, self.m_gen_reflux,
+                    debug=True
+                )
+            else:
+                raise e
 
     def getSHX(self, **kwargs):
         """Constructs and returns a model for the internal heat
