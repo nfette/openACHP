@@ -541,6 +541,9 @@ m_refrig,kg/s""".split()
         self.Q_refrig_side = 0
         self.ZeroCheckRect = 0
 
+    def getStateIterator(self):
+        return stateIterator(self)
+
     def stateTable(self):
         ii = range(len(self.points))
         states = np.zeros_like(ii, dtype=StateType)

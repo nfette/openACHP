@@ -10,6 +10,7 @@ from collections import namedtuple
 import sys
 import numpy as np
 import tabulate
+import json
 thismodule = sys.modules[__name__]
 
 molecular_mass_water = 18.015 # g/mol
@@ -52,6 +53,15 @@ class CStateTable:
         return self.doit()
     def _repr_html_(self):
         return self.doit(tablefmt="html")
+
+    def toJSON(self):
+        output = {}
+        for p, s in zip(self.labels, self.states):
+            node = {}
+            for key in StateType.names:
+                node[key] = s[key].astype(float)
+            output[p] = node
+        return json.dumps(output)
 
 def splitCode1(code):
     return [code // 100, code // 10 % 10, code % 10]
