@@ -71,6 +71,7 @@ class AmmoniaAbsorberStream(object):
         self.q_pre = 0
 
         if weak_inlet.isSubcooled():
+            print("Note: Absorber inlet is subcooled")
             # If so, then any absorption prior to saturation does not require
             # heat transfer to proceed. By design, this should probably not
             # happen; instead, expand to lower pressure until saturation is
@@ -85,11 +86,13 @@ class AmmoniaAbsorberStream(object):
             m_refrig = m_weak * (weak_inlet.x - x_sat) / (x_sat - refrig_inlet.x)
 
         elif weak_inlet.Qu > 0:
+            print("Note: Absorber inlet contains some vapor.")
             # Inlet is already a (super)saturated state. However, there may be
             # some vapor at the inlet. So, we should cool the thing down.
             self.sat_inlet = amm.props2(P=weak_inlet.P, Qu=0, x=weak_inlet.x)
             self.m_sat = m_weak
             if weak_inlet.isSuperheated():
+                print("Note: Absorber inlet is superheated.")
                 # If so, then the fluid must be further cooled to saturation
                 # temperature before any vapor can be absorbed. This should not
                 # have happened, by design! Assume:
@@ -124,24 +127,39 @@ class AmmoniaAbsorberStream(object):
             self.m_sat = m_weak
 
         # Now we continue from the saturated liquid inlet towards the refrigerant.
-        xmax = self.refrig_inlet.x * (0.5)
+        # TODO: need a robust way to choose xmax.
+        # If xmax is less that sat_inlet.x, then the points will "go the wrong way".
+        xmax = self.refrig_inlet.x * (0.8)
         for (i, x) in enumerate(np.linspace(self.sat_inlet.x, xmax)):
             try:
                 q, t = self._x(x)
+                x_points.append(x)
                 q_points.append(q)
                 T_points.append(t)
             except:
                 print("[{}] x = {}: Unable to converge in NH3H2O".format(i, x))
                 break
-        self.q = scipy.interpolate.PchipInterpolator(T_points[::-1], q_points[::-1])
-        self.T = scipy.interpolate.PchipInterpolator(q_points[::-1], T_points[::-1])
 
+        if debug:
+            print("Weak inlet: ", weak_inlet)
+            print("Refrig inlet: ", refrig_inlet)
+            print("Saturation point: ", self.sat_inlet)
+            print(tabulate.tabulate(zip(x_points, T_points, q_points),
+                                    ["x", "T", "Q"]))
         if debug:
             import matplotlib.pyplot as plt
             plt.figure()
             plt.title("Absorber stream, inlet Qu = {}".format(weak_inlet.Qu))
+            plt.xlabel("Q")
+            plt.ylabel("T")
             plt.plot(0, weak_inlet.T, 'o')
             plt.plot(q_points, T_points, '.')
+            plt.show()
+
+        self.q = scipy.interpolate.PchipInterpolator(T_points[::-1], q_points[::-1])
+        self.T = scipy.interpolate.PchipInterpolator(q_points[::-1], T_points[::-1])
+
+        if debug:
             q_range = np.linspace(min(q_points), max(q_points))
             T_vals = self.T(q_range)
             plt.plot(q_range, T_vals, '-')
@@ -496,7 +514,9 @@ m_rich,kg/s
 m_weak,kg/s
 m_gen_vapor,kg/s
 m_gen_reflux,kg/s
-m_refrig,kg/s""".split()
+m_refrig,kg/s
+check_rectifier_delta_T,K
+is_degenerate,bool""".split()
         self.vars = [var.split(',')[0] for var in vars]
         self.units = [var.split(',')[1] for var in vars]
 
@@ -540,6 +560,8 @@ m_refrig,kg/s""".split()
         self.Q_gen_rect_combo = 0
         self.Q_refrig_side = 0
         self.ZeroCheckRect = 0
+        self.check_rectifier_delta_T = 0
+        self.is_degenerate = False
 
     def getStateIterator(self):
         return stateIterator(self)
@@ -623,6 +645,9 @@ m_refrig,kg/s""".split()
         1. Input inlet temperature.
         2. Determine heat flow and saturation temperature.
         """
+
+        self.is_degenerate = False
+
         # Refrigerant cycle step 1:
         self.refrig_evap_outlet, self.refrig_cond_outlet \
             = self.updateRefrig(x_refrig, T_evap, T_cond, Qu_evap)
@@ -683,6 +708,10 @@ m_refrig,kg/s""".split()
         self.refrig_rect_outlet = amm.props2(P=self.refrig_cond_outlet.P,
                                              x=x_refrig,
                                              T=T_rect)
+        # Should be positive
+        self.check_rectifier_delta_T = self.gen_vapor_outlet.T - T_rect
+        self.is_degenerate = self.is_degenerate or self.check_rectifier_delta_T < 0
+
         x_vapor, x_liquid = self.gen_vapor_outlet.x, self.gen_reflux_inlet.x
         self.m_gen_vapor, self.m_gen_reflux = \
             self.updateRectifier(self.m_refrig, x_refrig, x_vapor, x_liquid)
@@ -903,7 +932,7 @@ m_refrig,kg/s""".split()
         return HRHX_integral_model.aquaStream(self.refrig_rect_outlet,
                                               self.m_refrig)
 
-    def getRectifierStream(self,retry=False):
+    def getRectifierStream(self,retry=True):
         try:
             return AmmoniaRefluxStream(self.gen_vapor_outlet, self.m_gen_vapor,
                                          self.gen_reflux_inlet, self.m_gen_reflux)
