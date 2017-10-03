@@ -1,0 +1,505 @@
+,,Q,opt
+293.15,1.0,128.977391498,"     fun: -128.97739149780878
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  2.22135233e-01,   2.78663623e+02,   3.00414681e+02,
+         3.00720643e+02,   2.98714953e+02,   3.95118642e+02])"
+293.15,0.95,88.0279823597,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.00150000e+02,
+         3.01150000e+02,   2.98150000e+02,   3.95150000e+02])"
+293.15,0.9,88.0279823597,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.00150000e+02,
+         3.01150000e+02,   2.98150000e+02,   3.95150000e+02])"
+293.15,0.8,88.0279823597,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.00150000e+02,
+         3.01150000e+02,   2.98150000e+02,   3.95150000e+02])"
+293.15,0.5,88.0279823597,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.00150000e+02,
+         3.01150000e+02,   2.98150000e+02,   3.95150000e+02])"
+293.15,0.2,88.0279823597,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.00150000e+02,
+         3.01150000e+02,   2.98150000e+02,   3.95150000e+02])"
+293.15,0.1,88.0279823597,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.00150000e+02,
+         3.01150000e+02,   2.98150000e+02,   3.95150000e+02])"
+298.15,1.0,128.034152931,"     fun: -128.03415293101969
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  2.63589863e-01,   2.78719339e+02,   3.05495004e+02,
+         3.05802284e+02,   3.03839695e+02,   3.95416000e+02])"
+298.15,0.95,73.7650641718,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.05150000e+02,
+         3.06150000e+02,   3.03150000e+02,   3.95150000e+02])"
+298.15,0.9,73.7650641718,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.05150000e+02,
+         3.06150000e+02,   3.03150000e+02,   3.95150000e+02])"
+298.15,0.8,73.7650641718,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.05150000e+02,
+         3.06150000e+02,   3.03150000e+02,   3.95150000e+02])"
+298.15,0.5,73.7650641718,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.05150000e+02,
+         3.06150000e+02,   3.03150000e+02,   3.95150000e+02])"
+298.15,0.2,73.7650641718,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.05150000e+02,
+         3.06150000e+02,   3.03150000e+02,   3.95150000e+02])"
+298.15,0.1,73.7650641718,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.05150000e+02,
+         3.06150000e+02,   3.03150000e+02,   3.95150000e+02])"
+303.15,1.0,130.942299565,"     fun: -130.94229956490341
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  3.26685132e-01,   2.78544218e+02,   3.10129472e+02,
+         3.11141827e+02,   3.08129683e+02,   3.95274334e+02])"
+303.15,0.95,124.451715106,"     fun: 194.11411245254538
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 47
+  status: 1
+ success: True
+       x: array([  3.10981797e-01,   2.78541470e+02,   3.10146178e+02,
+         3.11243666e+02,   3.08159577e+02,   3.95245349e+02])"
+303.15,0.9,117.855021438,"     fun: 165.23683426286959
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  2.94423225e-01,   2.78545559e+02,   3.10147610e+02,
+         3.11377878e+02,   3.08155245e+02,   3.95247360e+02])"
+303.15,0.8,104.78066621,"     fun: 123.10003918090034
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  2.62326002e-01,   2.78515552e+02,   3.10171936e+02,
+         3.11375244e+02,   3.08175659e+02,   3.95231915e+02])"
+303.15,0.5,65.5129742246,"     fun: 58.023374285026328
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 47
+  status: 1
+ success: True
+       x: array([  1.63553491e-01,   2.78572780e+02,   3.10167111e+02,
+         3.11375425e+02,   3.08152920e+02,   3.95254077e+02])"
+303.15,0.2,30.412309078,"     fun: 13.475482376720112
+   maxcv: 5.4570237217888007e-13
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  1.00000000e-01,   2.75740150e+02,   3.12005039e+02,
+         3.12105039e+02,   3.11927140e+02,   3.94069605e+02])"
+303.15,0.1,29.7423616498,"     fun: 12.945770522613635
+   maxcv: 3.4111602431607935e-14
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  1.00000000e-01,   2.75397214e+02,   3.12249002e+02,
+         3.12349002e+02,   3.11952118e+02,   3.93998211e+02])"
+308.15,1.0,109.223406258,"     fun: 1352.136946677175
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 45
+  status: 1
+ success: True
+       x: array([  3.52329016e-01,   2.78721861e+02,   3.15129658e+02,
+         3.16155350e+02,   3.13100060e+02,   3.95277134e+02])"
+308.15,0.95,103.76250676,"     fun: 117.97023413704444
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  3.38289362e-01,   2.78538578e+02,   3.15195665e+02,
+         3.16323816e+02,   3.13127671e+02,   3.95243785e+02])"
+308.15,0.9,98.3329111032,"     fun: 98.710949547128692
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 49
+  status: 1
+ success: True
+       x: array([  3.21014130e-01,   2.78541955e+02,   3.15265031e+02,
+         3.16330179e+02,   3.13116452e+02,   3.95238941e+02])"
+308.15,0.8,87.3792927793,"     fun: 75.895029811386166
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  2.85374409e-01,   2.78536331e+02,   3.15167578e+02,
+         3.16331158e+02,   3.13185712e+02,   3.95226633e+02])"
+308.15,0.5,54.606522535,"     fun: 567.32883543715036
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 48
+  status: 1
+ success: True
+       x: array([  1.78913169e-01,   2.78575027e+02,   3.15273900e+02,
+         3.16426951e+02,   3.13258385e+02,   3.95259009e+02])"
+308.15,0.2,23.1358872858,"     fun: 10.819644964042665
+   maxcv: 2.6148527787483999e-13
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  1.00000000e-01,   2.76053929e+02,   3.16756029e+02,
+         3.16856029e+02,   3.15425347e+02,   3.93937146e+02])"
+308.15,0.1,21.2602657914,"     fun: 9.7361605901856247
+   maxcv: 7.566635100331176e-05
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  9.99243336e-02,   2.75676045e+02,   3.17116036e+02,
+         3.17216009e+02,   3.16097564e+02,   3.93310590e+02])"
+313.15,1.0,75.4406886479,"     fun: 200.9041898228169
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 47
+  status: 1
+ success: True
+       x: array([  3.54044716e-01,   2.78613434e+02,   3.20144922e+02,
+         3.21158249e+02,   3.18082059e+02,   3.95246211e+02])"
+313.15,0.95,71.6481093152,"     fun: 8428.9048870631923
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 49
+  status: 1
+ success: True
+       x: array([  3.38977522e-01,   2.78541520e+02,   3.20191021e+02,
+         3.21323309e+02,   3.18123110e+02,   3.95246807e+02])"
+313.15,0.9,67.9012262328,"     fun: 65.898089614726146
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  3.20063857e-01,   2.78565198e+02,   3.20160001e+02,
+         3.21328780e+02,   3.18099070e+02,   3.95241372e+02])"
+313.15,0.8,60.3549105132,"     fun: 50.306307471163862
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  2.86662672e-01,   2.78540427e+02,   3.20263480e+02,
+         3.21325828e+02,   3.18110046e+02,   3.95198001e+02])"
+313.15,0.5,37.6993930345,"     fun: 8705.8128194047549
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 49
+  status: 1
+ success: True
+       x: array([  1.78993559e-01,   2.78535649e+02,   3.20273272e+02,
+         3.21423234e+02,   3.18129107e+02,   3.95265115e+02])"
+313.15,0.2,15.0881841017,"     fun: 8.3700160941620645
+   maxcv: 3.4111602431607935e-14
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  1.00000000e-01,   2.76883089e+02,   3.21543781e+02,
+         3.21643781e+02,   3.19827810e+02,   3.93736481e+02])"
+313.15,0.1,10.1275373066,"     fun: 5.7846151799857832
+   maxcv: -0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  1.00000000e-01,   2.75284714e+02,   3.22249760e+02,
+         3.22349760e+02,   3.21490931e+02,   3.92872530e+02])"
+318.15,1.0,43.5890044449,"     fun: -43.17235488177333
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 37
+  status: 1
+ success: True
+       x: array([  3.83060648e-01,   2.78607631e+02,   3.25139577e+02,
+         3.26152322e+02,   3.23086708e+02,   3.95249477e+02])"
+318.15,0.95,41.4118224539,"     fun: 63.352688019289509
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  3.67573837e-01,   2.78552183e+02,   3.25149830e+02,
+         3.26382974e+02,   3.23119200e+02,   3.95247631e+02])"
+318.15,0.9,39.2202085868,"     fun: 1986.3841993354768
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 49
+  status: 1
+ success: True
+       x: array([  3.48019630e-01,   2.78529895e+02,   3.25183503e+02,
+         3.26324190e+02,   3.23059075e+02,   3.95250102e+02])"
+318.15,0.8,34.872981621,"     fun: 36.698127532304255
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  3.07459384e-01,   2.78589278e+02,   3.25141281e+02,
+         3.26390181e+02,   3.23085191e+02,   3.95229916e+02])"
+318.15,0.5,21.7947877233,"     fun: 17.985698562879783
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  1.90922432e-01,   2.78595744e+02,   3.25169469e+02,
+         3.26431554e+02,   3.23040183e+02,   3.95293890e+02])"
+318.15,0.2,8.71761643761,"     fun: 7.244113120639418
+   maxcv: -0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 45
+  status: 1
+ success: True
+       x: array([  1.00000000e-01,   2.77945051e+02,   3.25728479e+02,
+         3.26360717e+02,   3.23808659e+02,   3.94568390e+02])"
+318.15,0.1,4.35880359118,"     fun: 4.0513864346924962
+   maxcv: -0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 35
+  status: 1
+ success: True
+       x: array([  1.00000000e-01,   2.76913248e+02,   3.26715232e+02,
+         3.26815232e+02,   3.24956656e+02,   3.93469975e+02])"
+323.15,1.0,13.7458854907,"     fun: 55.13229662583489
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 38
+  status: 1
+ success: True
+       x: array([   0.89470281,  278.75287191,  329.92023585,  331.08771106,
+        327.94495262,  395.32047985])"
+323.15,0.95,2.56200753533,"     fun: 1195822042.9913898
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 32
+  status: 1
+ success: True
+       x: array([  2.60071743e-01,   2.78659959e+02,   3.30150037e+02,
+         3.31150002e+02,   3.28150069e+02,   3.95359839e+02])"
+323.15,0.9,2.56208046432,"     fun: 1044333593.2424829
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 32
+  status: 1
+ success: True
+       x: array([  2.59967861e-01,   2.78660047e+02,   3.30149992e+02,
+         3.31150045e+02,   3.28149942e+02,   3.95359994e+02])"
+323.15,0.8,4.13476779511,"     fun: 511051334.3527056
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 32
+  status: 1
+ success: True
+       x: array([  3.73396160e-01,   2.78669799e+02,   3.30141355e+02,
+         3.31124911e+02,   3.28123153e+02,   3.95444893e+02])"
+323.15,0.5,6.87422549059,"     fun: 18.666047557271149
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 48
+  status: 1
+ success: True
+       x: array([   0.42919922,  278.72003   ,  329.82970704,  331.09914062,
+        327.99863865,  395.3893626 ])"
+323.15,0.2,2.74848788478,"     fun: 16.929789708130343
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 49
+  status: 1
+ success: True
+       x: array([  2.27432763e-01,   2.78624590e+02,   3.30001527e+02,
+         3.31097056e+02,   3.28070546e+02,   3.95379619e+02])"
+323.15,0.1,1.37470251033,"     fun: 4.7412990167379307
+   maxcv: 0.0
+ message: 'Maximum number of function evaluations has been exceeded.'
+    nfev: 50
+  status: 2
+ success: False
+       x: array([  1.64614879e-01,   2.78554318e+02,   3.30123272e+02,
+         3.31090370e+02,   3.28133756e+02,   3.95281312e+02])"
+328.15,1.0,-16.0750822067,"     fun: -inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.35150000e+02,
+         3.36150000e+02,   3.33150000e+02,   3.95150000e+02])"
+328.15,0.95,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.35150000e+02,
+         3.36150000e+02,   3.33150000e+02,   3.95150000e+02])"
+328.15,0.9,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.35150000e+02,
+         3.36150000e+02,   3.33150000e+02,   3.95150000e+02])"
+328.15,0.8,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.35150000e+02,
+         3.36150000e+02,   3.33150000e+02,   3.95150000e+02])"
+328.15,0.5,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.35150000e+02,
+         3.36150000e+02,   3.33150000e+02,   3.95150000e+02])"
+328.15,0.2,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.35150000e+02,
+         3.36150000e+02,   3.33150000e+02,   3.95150000e+02])"
+328.15,0.1,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.35150000e+02,
+         3.36150000e+02,   3.33150000e+02,   3.95150000e+02])"
+333.15,1.0,-34.5410243078,"     fun: -inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.40150000e+02,
+         3.41150000e+02,   3.38150000e+02,   3.95150000e+02])"
+333.15,0.95,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.40150000e+02,
+         3.41150000e+02,   3.38150000e+02,   3.95150000e+02])"
+333.15,0.9,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.40150000e+02,
+         3.41150000e+02,   3.38150000e+02,   3.95150000e+02])"
+333.15,0.8,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.40150000e+02,
+         3.41150000e+02,   3.38150000e+02,   3.95150000e+02])"
+333.15,0.5,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.40150000e+02,
+         3.41150000e+02,   3.38150000e+02,   3.95150000e+02])"
+333.15,0.2,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.40150000e+02,
+         3.41150000e+02,   3.38150000e+02,   3.95150000e+02])"
+333.15,0.1,,"     fun: inf
+   maxcv: 0.0
+ message: 'Optimization terminated successfully.'
+    nfev: 39
+  status: 1
+ success: True
+       x: array([  1.50000000e-01,   2.78450000e+02,   3.40150000e+02,
+         3.41150000e+02,   3.38150000e+02,   3.95150000e+02])"

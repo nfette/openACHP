@@ -71,7 +71,8 @@ class AmmoniaAbsorberStream(object):
         self.q_pre = 0
 
         if weak_inlet.isSubcooled():
-            print("Note: Absorber inlet is subcooled")
+            #print("Note: Absorber inlet is subcooled")
+
             # If so, then any absorption prior to saturation does not require
             # heat transfer to proceed. By design, this should probably not
             # happen; instead, expand to lower pressure until saturation is
@@ -86,13 +87,15 @@ class AmmoniaAbsorberStream(object):
             m_refrig = m_weak * (weak_inlet.x - x_sat) / (x_sat - refrig_inlet.x)
 
         elif weak_inlet.Qu > 0:
-            print("Note: Absorber inlet contains some vapor.")
+            #print("Note: Absorber inlet contains some vapor.")
+
             # Inlet is already a (super)saturated state. However, there may be
             # some vapor at the inlet. So, we should cool the thing down.
             self.sat_inlet = amm.props2(P=weak_inlet.P, Qu=0, x=weak_inlet.x)
             self.m_sat = m_weak
             if weak_inlet.isSuperheated():
-                print("Note: Absorber inlet is superheated.")
+                #print("Note: Absorber inlet is superheated.")
+
                 # If so, then the fluid must be further cooled to saturation
                 # temperature before any vapor can be absorbed. This should not
                 # have happened, by design! Assume:

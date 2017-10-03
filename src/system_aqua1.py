@@ -15,7 +15,7 @@ from scipy.optimize import minimize, basinhopping, brute
 from scipy.special import expit
 import hashlib
 import pickle
-
+import pandas
 
 def makeBoundary(x):
     """Given a iterable x that represents 5 stream inlets as T,m pairs,
@@ -125,11 +125,14 @@ class System(object):
 
         self.totalUA = 0
         self.data = []
+        self.df = pandas.DataFrame(columns='deltaT epsilon UA Q'.split(),
+                                   index='gen rect abs cond evap'.split())
         for name in self.hxs:
             self.hxs[name].calcQmax()
             deltaT, epsilon, UA = np.inf, np.inf, np.inf
             try:
                 deltaT, epsilon, UA = self.hxs[name].calcUA2(self.Q[name])
+                self.df.loc[name] = deltaT, epsilon, UA, self.Q[name]
             except ValueError as e:
                 pass
             self.data.append((name, deltaT, epsilon, UA, self.Q[name]))
