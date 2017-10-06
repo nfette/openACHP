@@ -647,6 +647,8 @@ is_degenerate,bool""".split()
         Generator step 2:
         1. Input inlet temperature.
         2. Determine heat flow and saturation temperature.
+
+        TODO: figure out how T_rect is a relevant input.
         """
 
         self.is_degenerate = False
