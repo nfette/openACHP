@@ -250,6 +250,7 @@ class AmmoniaProps:
     def equilibriumStates2(self, P, z_vapor):
         """ Return the vapor state at P,z_vapor,Qu=1,
         and the equilibrium liquid state at P,T,Qu=0
+        (but in the order liquid, vapor)
         """
         vapor = self.props2(P=P,x=z_vapor,Qu=1)
         liquid = self.props2(P=P,T=vapor.T,Qu=0)
