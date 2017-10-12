@@ -10,7 +10,9 @@ dependencies:
   - git
   - ipywidgets
   - pandas
+  - xarray
   - pip:
     - tabulate
     - CoolProp
+    - pyvtk
 
