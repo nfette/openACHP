@@ -139,13 +139,14 @@ def parallel_evaporation(
         nodal_water_temperature.append(water_temperature_out)
         nodal_interface_humrat.append(interface_humrat_out)
     
-    result = pandas.DataFrame.from_dict(dict(nodal_temperature=nodal_temperature,
-                            nodal_relhum=nodal_relhum,
-                            nodal_humrat=nodal_humrat,
-                            nodal_water_flow=nodal_water_flow,
-                            nodal_water_temperature=nodal_water_temperature,
-                            nodal_interface_humrat=nodal_interface_humrat
-                           ))
+    result = pandas.DataFrame.from_dict(dict(
+        T_air=nodal_temperature,
+        RelHum=nodal_relhum,
+        HumRat_air=nodal_humrat,
+        WaterFlow=nodal_water_flow,
+        T_water=nodal_water_temperature,
+        HumRat_interface=nodal_interface_humrat
+        ))
     return result
 
 def plot_results(my_dataframe):
@@ -203,11 +204,11 @@ def plot_results(my_dataframe):
             bbox_opts = dict(boxstyle='square,pad=0.0',fc='white',ec='None',alpha = 0.9)
             ax.text(T_K-273.15,w,string,rotation = rot,ha ='center',va='center',bbox=bbox_opts)
 
-    ax.plot(my_dataframe.nodal_temperature-273.15,
-            my_dataframe.nodal_humrat,
+    ax.plot(my_dataframe.T_air-273.15,
+            my_dataframe.HumRat_air,
             'k.-')
-    ax.plot(my_dataframe.nodal_water_temperature-273.15,
-            my_dataframe.nodal_interface_humrat,
+    ax.plot(my_dataframe.T_water-273.15,
+            my_dataframe.HumRat_interface,
            'm.-')
     matplotlib.pyplot.show()
     
