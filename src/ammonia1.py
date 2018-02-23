@@ -260,6 +260,13 @@ class AmmoniaGeneratorStream(object):
             self.sat_inlet = liquid
             self.m_desorb = m_vapor - m_rich * self.rich_inlet.Qu
             self.q_pre = 0
+        
+        # Generate a list of state points (and cum. heat flows)
+        # by varying mass fraction from saturated inlet *down* to an arbitrary
+        # low value (that should work to integrate heat exchange with any given
+        # other stream).
+        # Previously, I chose x_low_trace = 0.1
+        # TODO: Need to assert self.sat_inlet.x > x_low_trace, or change limit.
 
         for (i, x) in enumerate(np.linspace(self.sat_inlet.x, 0.1)):
             # try:
@@ -271,6 +278,11 @@ class AmmoniaGeneratorStream(object):
             #    print("[{}] x = {}: Unable to converge in NH3H2O".format(i,x))
             #    print(e)
             #    break
+
+        if debug:
+            print(tabulate.tabulate(zip(q_points, T_points, x_points),
+                                    "q T x".split()))
+            print(np.diff(T_points) < 0)
 
         self.q = scipy.interpolate.PchipInterpolator(T_points, q_points)
         self.T = scipy.interpolate.PchipInterpolator(q_points, T_points)
@@ -924,10 +936,17 @@ is_degenerate,bool""".split()
                                      self.refrig_cehx_vapor_outlet,
                                      self.m_weak)
 
-    def getGeneratorStream(self):
-        return AmmoniaGeneratorStream(self.rich_shx_outlet, self.m_rich,
-                                      self.gen_reflux_inlet, self.m_gen_reflux,
-                                      self.gen_vapor_outlet, self.m_gen_vapor)
+    def getGeneratorStream(self, retry=True):
+        args = (self.rich_shx_outlet, self.m_rich,
+                self.gen_reflux_inlet, self.m_gen_reflux,
+                self.gen_vapor_outlet, self.m_gen_vapor)
+        try:
+            return AmmoniaGeneratorStream(*args)
+        except Exception as e:
+            if retry:
+                return AmmoniaGeneratorStream(*args, debug=True)
+            else:
+                raise e
 
     def getEvaporatorStream(self):
         return HRHX_integral_model.aquaStream(self.refrig_exp_outlet,

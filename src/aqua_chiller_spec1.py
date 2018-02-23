@@ -2,10 +2,11 @@
 A useful compendium of executable wisdom.
 """
 
-import CoolProp.CoolProp as CP
-from ammonia_props import massFractionToMolar, AmmoniaProps
 import numpy
 import pandas
+import CoolProp.CoolProp as CP
+from ammonia_props import massFractionToMolar, AmmoniaProps
+import ammonia1
 
 amm=AmmoniaProps()
 
@@ -43,15 +44,22 @@ all_columns = pandas.MultiIndex.from_product([['spec'],spec_columns]) \
 def makeSpec(T_abs=300,T_cond=300,T_evap=278,T_gen=380,T_rect=310,x_refrig=0.9998):
     return pandas.Series(data=[T_abs, T_cond, T_evap, T_gen, T_rect, x_refrig],
                          index=spec_columns)
-                         
-                         
+
+
+def makeChiller(spec):
+    ch = ammonia1.AmmoniaChiller()
+    ch.update(x_refrig=spec.x_refrig, T_evap=spec.T_evap, T_cond=spec.T_cond,
+          T_abs_outlet=spec.T_abs, T_gen_outlet=spec.T_gen, T_rect=spec.T_rect)
+    return ch
+
+
 class AquaChillerSpec1:
     
     n_cons = n_constraints_aqua_ammonia
     Qu_evap = 0.998
     x_refrig_min = 0.9
-    x_refrig_max = 1.0
-    x_rich_min = 1e-1
+    x_refrig_max = 0.999999
+    x_rich_min = 0.2
     x_rich_max_max = 1.0
     P_cond_max = 80.85
     
@@ -70,6 +78,11 @@ class AquaChillerSpec1:
         self.messages = messages
         
         try:
+            # Todo: implement the constraints on T_rect.
+            #  eg C[9] to enforce T_cond < T_rect,
+            #  C[10] to enforce T_rect <= T(P=Pcond,x=xrefrig,Qu=1).
+            # Todo: Do we need a lower bound for T_abs?
+            
             # A trivial constraint that is always satisfied
             C[0] = 0
             

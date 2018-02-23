@@ -2,6 +2,8 @@ import numpy
 import ammonia1
 import system_aqua1
 import scipy.optimize
+import aqua_chiller_spec1
+import pandas
 
 
 def saturate(x, bottom=-numpy.inf, top=0):
@@ -53,24 +55,32 @@ def grow1(step_number, initial_value = 1., rate = 1.):
 
 
 class Problem_A:
-    def __init__(self, bdry, mu=0.1):
+    def __init__(self, bdry, hx_delta_t_required=1.0, mu=0.1):
         self.bdry = bdry
+        self.hx_delta_t_required = hx_delta_t_required
         self.mu = mu
-        self.Ncons = 7
+        self.Ncons = 14
         self.n_calls = 0
         # Soft constraints mode: this is sent to minimizer
-        self.constraints = [{'type': 'ineq',
+        self.constraints_each = [{'type': 'ineq',
                              'fun': self.constraint,
                              'args': (i,)
                             } for i in range(self.Ncons)]
+        self.constraints_all = {'type': 'ineq',
+                                'fun': self.constraint,
+                               }
 
-    def objective(self, xC):
+    def objective(self, x):
         step_number = numpy.floor(self.n_calls / 7)
         self.n_calls += 1
-        # print(xC,flush=True)
+        print("[Problem_A.objective] Input vector:")
+        print(x)
+
         Q,B,P = 0.,0.,0.
         try:
-            ch = system_aqua1.makeChiller(xC)
+            spec = aqua_chiller_spec1.makeSpec(*x)
+            a = aqua_chiller_spec1.AquaChillerSpec1(spec,False)
+            ch = aqua_chiller_spec1.makeChiller(a.mapped)
             sys = system_aqua1.System(self.bdry, ch)
 
             # Barriers
@@ -88,11 +98,13 @@ class Problem_A:
             # Penalties
             # Magnitude tends to infinite
             mu_P = 1 * numpy.exp(0.3 * step_number)
-            penalties = [deltaT - 0.01
-                         for name, deltaT, epsilon, UA, Qhx in sys.data]
+            penalties = (spec - a.mapped) ** 2
             P = mu_P * penalty1(penalties,1)
 
             Q = sys.chiller.Q_evap
+            
+            print("Chiller Q = ",Q)
+                  
         except KeyboardInterrupt as e:
             raise e
         except:
@@ -102,13 +114,15 @@ class Problem_A:
         return -Q + B + P
 
     def constraint(self, x, *args):
-        cons = [x[0] - 0.1,
-                1. - x[0],
-                x[2] - x[1] - 1.0,
-                x[3] - x[2] - 0.1,
-                x[4] - x[1] - 10.0,
-                x[5] - x[3] - 1.0,
-                x[5] - x[4] - 1.0]
+        print("[Problem_A.constraint] Input vector:")
+        print(x)
+        spec = aqua_chiller_spec1.makeSpec(*x)
+        a = aqua_chiller_spec1.AquaChillerSpec1(spec,False)
+        print("Mapped chiller spec:")
+        print(a.mapped)
+        ch = aqua_chiller_spec1.makeChiller(a.mapped)
+        sys = system_aqua1.System(self.bdry, ch)
+        cons = pandas.concat([a.C, sys.df.deltaT - self.hx_delta_t_required])
         if len(args) > 0:
             i, = args
             return cons[i]
