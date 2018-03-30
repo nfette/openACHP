@@ -299,6 +299,37 @@ class counterflow_integrator(object):
             func = lambda q: 1./(self.hot.T(q-Q)-self.cold.T(q))
             UA = scipy.integrate.quad(func,0,Q)[0]
         return DeltaT,epsilon,UA
+
+    def calcUA3(self, q_total, delta_t_min):
+        """Given a goal for rate of heat flow from hot to cold side, compute
+        the requirement for overall heat transfer coefficient - area product.
+        When the requested heat transfer rate is infeasible even with infinite
+        heat transfer coefficient, enforce a feasible temperature difference
+        profile that is integrable, and return an indication of error.
+        The error is defined to be an integral:
+
+        delta_t_raw(q) = T_hot(q) - T_cold(q)
+        delta_t_feasible(q) = max(delta_t_raw(q), delta_t_min)
+        error = integral_{q=0}^{q_total} (delta_t_feasible(q) - delta_t_raw(q)) dq
+
+        Inputs:
+            q_total: the heat flow [kW]
+            delta_t_min: the minimum temperature difference in the artificial, feasible profile [K]
+        Outputs:
+            UA: The overall heat transfer coefficient - area product [kW/K]
+            error: The error integral
+
+        Notes: The integrals have to be computed separately.
+        """
+        delta_t_raw = lambda q: self.hot.T(q-q_total) - self.cold.T(q)
+        delta_t_feasible = lambda q: max(delta_t_min, delta_t_raw(q))
+        #delta_t_error = lambda q: delta_t_feasible(q) - delta_t_raw(q)
+        delta_t_error = lambda q: max(delta_t_min - delta_t_raw(q), 0)
+        f = lambda q:  1 / delta_t_feasible(q)
+        UA = scipy.integrate.quad(f, 0, q_total)[0]
+        error = scipy.integrate.quad(delta_t_error, 0, q_total)[0]
+        return (UA, error)
+
         
 def UA_by_LMTD(Q, Tc_in, Tc_out, Th_in, Th_out):
     """Implements the LMTD equation to compute UA value for a counterflow HX."""

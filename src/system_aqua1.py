@@ -107,7 +107,8 @@ class Boundary(object):
 
 
 class System(object):
-    def __init__(self, boundary, chiller):
+    def __init__(self, boundary, chiller, delta_t_min=0.1):
+        """delta_t_min is passed to heat exchanger UA calculation."""
         self.boundary = boundary
         self.chiller = chiller
 
@@ -125,31 +126,39 @@ class System(object):
 
         self.totalUA = 0
         self.data = []
-        self.df = pandas.DataFrame(columns='deltaT epsilon UA Q'.split(),
+        self.df = pandas.DataFrame(columns='deltaT epsilon UA Q error'.split(),
                                    index='gen rect abs cond evap'.split())
+        # for name in self.hxs:
+        #     self.hxs[name].calcQmax()
+        #     deltaT, epsilon, UA = np.inf, np.inf, np.inf
+        #     try:
+        #         deltaT, epsilon, UA = self.hxs[name].calcUA2(self.Q[name])
+        #         self.df.loc[name] = deltaT, epsilon, UA, self.Q[name]
+        #     except ValueError as e:
+        #         pass
+        #     self.data.append((name, deltaT, epsilon, UA, self.Q[name]))
+        #     self.totalUA += UA
+
         for name in self.hxs:
-            self.hxs[name].calcQmax()
-            deltaT, epsilon, UA = np.inf, np.inf, np.inf
-            try:
-                deltaT, epsilon, UA = self.hxs[name].calcUA2(self.Q[name])
-                self.df.loc[name] = deltaT, epsilon, UA, self.Q[name]
-            except ValueError as e:
-                pass
-            self.data.append((name, deltaT, epsilon, UA, self.Q[name]))
-            self.totalUA += UA
+            delta_t_max = self.hxs[name].hot.T(0) - self.hxs[name].cold.T(0)
+            UA, error = self.hxs[name].calcUA3(self.Q[name], delta_t_min)
+            #delta_t = self.hxs[name].calcDistanceT(self.Q[name])
+            delta_t = delta_t_max
+            self.df.loc[name] = delta_t, 0, UA, self.Q[name], error
+
 
     def __repr__(self):
-        result = "{}\ntotalUA = {}".format(
-            tabulate.tabulate(self.data, "name deltaT epsilon UA Q".split()),
-            self.totalUA)
+        total_row = self.df.sum(numeric_only=True)
+        modified_df = self.df.copy()
+        modified_df.append(total_row, ignore_index=True)
+        result = tabulate.tabulate(modified_df, headers='keys')
         return result
 
     def _repr_html_(self):
-        total_line = [["total", 0, 0, self.totalUA, 0]]
-        table = tabulate.tabulate(self.data + total_line,
-                                  "name deltaT epsilon UA Q".split(),
-                                  tablefmt='html')
-        return """{}""".format(table)
+        total_row = self.df.sum(numeric_only=True)
+        modified_df = self.df.copy()
+        modified_df.append(total_row, ignore_index=True)
+        return modified_df.to_html()
 
     def display(self):
         import matplotlib.pyplot as plt
@@ -168,6 +177,14 @@ class System(object):
         plt.figure()
         bar2=plt.bar(range(5),UA,width,tick_label=component)
         """
+
+
+class SystemFeasible(System):
+    """Like System, but enforces feasibility of heat exchangers.
+
+    At the moment, does nothing, so don't use it."""
+    def __init__(self):
+        pass
 
 class Problem(object):
     r"""

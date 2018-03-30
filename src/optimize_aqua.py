@@ -122,7 +122,8 @@ class Problem_A:
         print(a.mapped)
         ch = aqua_chiller_spec1.makeChiller(a.mapped)
         sys = system_aqua1.System(self.bdry, ch)
-        cons = pandas.concat([a.C, sys.df.deltaT - self.hx_delta_t_required])
+        #cons = pandas.concat([a.C, sys.df.deltaT - self.hx_delta_t_required])
+        cons = pandas.concat([a.C, -sys.df.error])
         if len(args) > 0:
             i, = args
             return cons[i]
