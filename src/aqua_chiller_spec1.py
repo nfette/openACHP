@@ -29,7 +29,7 @@ def P_abs_ammonia(x_rich,x_refrig,P_evap):
 def T_abs_max_func(x_rich,P_abs):
     return amm.props2(x=x_rich,P=P_abs,Qu=0,out='T')
 
-n_constraints_aqua_ammonia = 9
+n_constraints_aqua_ammonia = 10
 spec_columns = ['T_abs','T_cond','T_evap','T_gen','T_rect','x_refrig']
 constraint_columns = range(n_constraints_aqua_ammonia)
 calc_columns = ['x_refrig_min','x_refrig_max','T_cond_max','T_evap_min',
@@ -189,7 +189,21 @@ class AquaChillerSpec1:
                 messages.append("T_gen ({:g}) should be greater than {:g} but is not.".format(
                     spec.T_gen, calc.T_gen_min))
                 mapped.T_gen = calc.T_gen_min
-        
+
+            # TODO: reorder newly added constraint.
+            # Enforces T_rect - T_cond > 0.
+            C[9] = (spec.T_rect - spec.T_cond)
+            if C[9] < 0:
+                messages.append("T_rect ({:g}) should be greater than T_cond ({:g}) but is not.".format(
+                    spec.T_rect, spec.T_cond))
+                # Todo: decide what to do next.
+                # Corrective Action, Case 1
+                # mapped.T_rect = spec.T_cond + 1
+                # Now we would have to go back and update variables depending on T_rect.
+                # Corrective Action, Case 2
+                # mapped.T_cond = spec.T_rect - 1
+                # Now we would have to go back and update variables depending on T_cond.
+
         except KeyError as e:
             messages.append(e.__repr__())
             if throws:
